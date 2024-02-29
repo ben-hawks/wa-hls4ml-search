@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wa-hls4ml-search-$RUNID-$CONFIG
+  labels:
+    jobgroup: wa-hls4ml-search
+spec:
+  template:
+    spec:
+      containers:
+      - name: hls4ml-docker
+        image:  gitlab-registry.nautilus.optiputer.net/bhawks/hls4ml-docker:vivado-2020-1
+        terminationMessagePolicy: FallbackToLogsOnError
+        command:
+        - "python"
+        args:
+        - /opt/repo/wa-hls4ml-search/run_search_iteration.py
+        - -c
+        - $CONFIG
+        - -b
+        - "$PREC"
+        - -o 
+        - /output/$RUNID/$CONFIG
+        volumeMounts:
+        - name: amd-xilinx-tools
+          mountPath: /opt/Xilinx
+        - name: git-repo
+          mountPath: /opt/repo
+        - name: wa-search-output
+        resources:
+          limits:
+            memory: 16Gi
+            cpu: "8"
+          requests:
+            memory: 8Gi
+            cpu: "4"
+      initContainers:
+      - name: init-clone-repo
+        image: alpine/git
+        args:
+          - clone
+          - --single-branch
+          - https://github.com/ben-hawks/wa-hls4ml-search
+          - -b
+          - master
+          - /opt/repo/wa-hls4ml-search
+        volumeMounts:
+          - name: git-repo
+            mountPath: /opt/repo
+      volumes:
+      - name: amd-xilinx-tools
+        persistentVolumeClaim:
+          claimName: amd-xilinx-tools
+      - name: wa-search-output
+        persistentVolumeClaim:
+          claimName: wa-search-output
+      restartPolicy: Never
+  backoffLimit: 5
