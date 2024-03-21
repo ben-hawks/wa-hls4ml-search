@@ -27,6 +27,7 @@ spec:
         - name: git-repo
           mountPath: /opt/repo
         - name: wa-search-output
+          mountPath: /output
         resources:
           limits:
             memory: 16Gi

@@ -1,0 +1,25 @@
+name: wa-hls4ml-search
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - jupyterhub
+  - pydot
+  - graphviz
+  - pytest
+  - pytest-cov
+  - pip
+  - pip:
+    - pytest-randomly
+    - jupyter
+    - onnx>=1.4.0
+    - matplotlib
+    - pandas
+    - seaborn
+    - pydigitalwavetools==1.1
+    - pyyaml
+    - tensorflow==2.14
+    - git+https://github.com/google/qkeras.git@1ab3542#egg=qkeras
+    - hls4ml[profiling]==0.8.1
+    - qonnx
+    - torch
