@@ -152,3 +152,4 @@ cython_debug/
 #.idea/
 /output/
 /.idea
+/kube/pregen_jobs
