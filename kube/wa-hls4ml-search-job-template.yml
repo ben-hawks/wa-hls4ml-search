@@ -12,7 +12,7 @@ spec:
         image:  bhawks/wa-hls4ml-search:alma8_vivado2020-1_hls4ml0-8-1
         terminationMessagePolicy: FallbackToLogsOnError
         command:
-        - "source /home/vivado/.bashrc && python"
+        - "source /opt/repo/job_start.sh"
         args:
         - /opt/repo/wa-hls4ml-search/iter_manager.py
         - -f
