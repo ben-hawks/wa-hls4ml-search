@@ -16,7 +16,7 @@ def main(args):
         output_loc = args.output + row["model_name"]
         for rf in range(args.rf_lower, args.rf_upper, rf_step):
             print("Running hls4ml C-Synth for {} with RF of {}".format(model_file, rf))
-            run_iter(model_name, model_file, rf, args.output)
+            run_iter(model_name, model_file, rf, args.output, vsynth=args.vsynth)
 
 
 if __name__ == "__main__":
@@ -27,6 +27,7 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--rf_step', type=int, default=512)
     parser.add_argument('-o', '--output', type=str, default='/output')
     parser.add_argument("-p", "--prefix", type=str, default='/opt/repo/wa-hls4ml-search/')
+    parser.add_argument("-v", "--vsynth", type=str, default=False)
 
     args = parser.parse_args()
 

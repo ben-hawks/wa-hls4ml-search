@@ -34,10 +34,10 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         os.makedirs(hls_dir)
 
     config = hls4ml.utils.config_from_keras_model(model, granularity='name')
+    config['Model']['ReuseFactor'] = rf
     print("-----------------------------------")
     print_dict(config)
     print("-----------------------------------")
-    config['Model']['ReuseFactor'] = rf
     hls_model = hls4ml.converters.convert_from_keras_model(
         model, hls_config=config, output_dir=hls_dir, part=part
     )
@@ -51,7 +51,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)
     hls4ml.report.read_vivado_report(hls_dir)
 
-    with open(output+"/"+name+"_report.json", "w") as outfile:
+    with open(output+"/"+name+"_rf"+str(rf)+"_report.json", "w") as outfile:
         json.dump(report_json, outfile)
 
 if __name__ == "__main__":
