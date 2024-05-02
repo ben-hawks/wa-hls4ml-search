@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_argument('-u', '--rf_upper', type=int, default=1024)
     parser.add_argument('-l', '--rf_lower', type=int, default=1)
     parser.add_argument('-s', '--rf_step', type=int, default=512)
-    parser.add_argument('-o', '--output', type=str, default='output')
+    parser.add_argument('-o', '--output', type=str, default='/output')
     parser.add_argument("-p", "--prefix", type=str, default='/opt/repo/wa-hls4ml-search/')
 
     args = parser.parse_args()
