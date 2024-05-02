@@ -27,22 +27,22 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     _add_supported_quantized_objects(co)
     model = load_model(model_file, custom_objects=co)
 
+    hls_dir = hlsproj + "/" + name
+    if not os.path.exists(hls_dir):
+        os.makedirs(hls_dir)
+
     config = hls4ml.utils.config_from_keras_model(model, granularity='name')
     print("-----------------------------------")
     print_dict(config)
     print("-----------------------------------")
     config['Model']['ReuseFactor'] = rf
     hls_model = hls4ml.converters.convert_from_keras_model(
-        model, hls_config=config, output_dir=output, part=part
+        model, hls_config=config, output_dir=hls_dir, part=part
     )
 
     print("compile hls model")
     hls_model.compile()
-    hls_model.build(csim=False, vsynth=vsynth)
-
-    hls_dir = hlsproj + "/" + name
-    if not os.path.exists(hls_dir):
-        os.makedirs(hls_dir)
+    hls_model.build(csim=True, vsynth=vsynth)
 
     # read the report and just save that?
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)

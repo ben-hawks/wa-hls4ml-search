@@ -11,6 +11,7 @@ def main(args):
     for index, row in filelist[["model_name","model_file"]].iterrows():
         model_name = row["model_name"]
         model_file = args.prefix + row["model_file"]
+        output_loc = args.output + row["model_name"]
         for rf in range(args.rf_lower, args.rf_upper, rf_step):
             print("Running hls4ml C-Synth for {} with RF of {}".format(model_file, rf))
             run_iter(model_name, model_file, rf, args.output)
