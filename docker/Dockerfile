@@ -30,7 +30,7 @@ COPY --from=build --chown=vivado /venv /venv
 USER vivado
 WORKDIR /home/vivado
 
-RUN echo "source /venv/bin/activate" > ~/.bashrc
+RUN echo "source /venv/bin/activate" >> ~/.bashrc
 
 RUN cat ~/.bashrc
 

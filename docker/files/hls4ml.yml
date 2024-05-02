@@ -2,6 +2,7 @@ name: wa-hls4ml-search
 channels:
   - conda-forge
 dependencies:
+  - cmake
   - python=3.10
   - pydot
   - graphviz
@@ -10,13 +11,12 @@ dependencies:
   - pip
   - pip:
     - pytest-randomly
-    - onnx>=1.4.0
+    - onnx
     - matplotlib
     - pandas
     - seaborn
-    - pydigitalwavetools==1.1
     - pyyaml
-    - tensorflow==2.14
-    - git+https://github.com/google/qkeras.git@1ab3542#egg=qkeras
+    - tensorflow==2.11
+    - git+https://github.com/google/qkeras.git@1ab354276a041b45cd72c300e89a7c51ec99fa35#egg=qkeras
     - hls4ml[profiling]==0.8.1
-    - qonnx
+    #- qonnx<0.3.0

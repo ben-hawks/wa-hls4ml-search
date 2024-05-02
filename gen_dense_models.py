@@ -42,7 +42,7 @@ def main(args):
     for d_in in dense_in:
         for d_out in dense_out:
             for p in prec:
-                model_name = 'dense-{}-{}-{}b'.format(d_in, d_out, p)
+                model_name = 'dense_{}_{}_{}b'.format(d_in, d_out, p)
                 model_file = args.output+"/"+model_name+".h5"
                 print(model_name)
                 model = Sequential()
