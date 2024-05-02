@@ -8,6 +8,8 @@ import argparse
 import yaml
 import json
 
+os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
+
 def print_dict(d, indent=0):
     align = 20
     for key, value in d.items():
