@@ -2,6 +2,7 @@
 
 whoami
 ls -al /venv
+ls -al /opt/repo/
 
 source /venv/bin/activate
 
