@@ -22,7 +22,7 @@ def print_dict(d, indent=0):
 def main(args):
     run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj)
 
-def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj/', vsynth=False):
+def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=False):
     co = {}
     _add_supported_quantized_objects(co)
     model = load_model(model_file, custom_objects=co)
@@ -41,8 +41,9 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     )
 
     print("compile hls model")
+    hls_model.write()
     hls_model.compile()
-    hls_model.build(csim=True, vsynth=vsynth)
+    hls_model.build(csim=False, vsynth=vsynth)
 
     # read the report and just save that?
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)
