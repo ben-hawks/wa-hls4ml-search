@@ -29,7 +29,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     _add_supported_quantized_objects(co)
     model = load_model(model_file, custom_objects=co)
 
-    hls_dir = hlsproj + "/" + name
+    hls_dir = hlsproj + "/" + name + "_rf" + str(rf)
     if not os.path.exists(hls_dir):
         os.makedirs(hls_dir)
 
