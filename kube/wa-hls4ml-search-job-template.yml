@@ -16,7 +16,7 @@ spec:
         args:
         - /opt/repo/wa-hls4ml-search/iter_manager.py
         - -f
-        - pregen_models/filelist_$CONFIG.csv
+        - /opt/repo/pregen_models/filelist_$CONFIG.csv
         volumeMounts:
         - name: amd-xilinx-tools
           mountPath: /opt/Xilinx

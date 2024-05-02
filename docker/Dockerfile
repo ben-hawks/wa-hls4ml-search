@@ -25,7 +25,7 @@ RUN /venv/bin/conda-unpack
 
 FROM bhawks/vivado-docker:alma8-vivado-2020.1-minimal as deploy
 
-COPY --from=build /venv /venv
+COPY --from=build --chown=vivado /venv /venv
 
 USER vivado
 WORKDIR /home/vivado
@@ -34,4 +34,5 @@ RUN echo "source /venv/bin/activate" > ~/.bashrc
 
 RUN cat ~/.bashrc
 
-ENTRYPOINT python -c 'help("modules")'
+SHELL ["/bin/bash", "-c", "-l"]
+ENTRYPOINT source /venv/bin/activate &&

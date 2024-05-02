@@ -1,0 +1,5 @@
+model_name,d_in,d_out,prec,model_file
+dense-256-256-6b,256,256,6,pregen_models/dense-256-256-6b.h5
+dense-256-256-8b,256,256,8,pregen_models/dense-256-256-8b.h5
+dense-256-256-10b,256,256,10,pregen_models/dense-256-256-10b.h5
+dense-256-256-12b,256,256,12,pregen_models/dense-256-256-12b.h5
