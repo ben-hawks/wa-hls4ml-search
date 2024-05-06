@@ -29,6 +29,11 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     _add_supported_quantized_objects(co)
     model = load_model(model_file, custom_objects=co)
 
+    json_name = output+"/"+name+"_rf"+str(rf)+"_report.json"
+    if os.path.exists(json_name):
+        print(json_name + " Already exists, skipping...")
+        return
+
     hls_dir = hlsproj + "/" + name + "_rf" + str(rf)
     if not os.path.exists(hls_dir):
         os.makedirs(hls_dir)
@@ -51,7 +56,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)
     hls4ml.report.read_vivado_report(hls_dir)
 
-    with open(output+"/"+name+"_rf"+str(rf)+"_report.json", "w") as outfile:
+    with open(json_name, "w") as outfile:
         json.dump(report_json, outfile)
 
 if __name__ == "__main__":
