@@ -36,7 +36,7 @@ spec:
             cpu: "2.5"
           requests:
             memory: 2Gi
-            cpu: "1.5"
+            cpu: "1.0"
       initContainers:
       - name: init-clone-repo
         image: alpine/git
