@@ -252,16 +252,34 @@ if __name__ == "__main__":
     # Calculate the overall min and max values for the reference line
     overall_min = np.min(y_test)
     overall_max = np.max(y_test)
+    n_features = len(output_features)
+    n_cols = 2
+    n_rows = math.ceil(n_features / n_cols)
+
+    # Create a subplot
+    import plotly.subplots as sp
+    fig = sp.make_subplots(rows=n_rows, cols=n_cols,
+                           vertical_spacing=0.03, horizontal_spacing=0.03,
+                            x_title='Actual Value',
+                            y_title='Predicted Value',
+                           subplot_titles=output_features)
 
     # Iterate over each column
-    for i in range(y_test.shape[1]):
+    for i in range(n_features):
+        # Calculate the current row and column
+        row = i // n_cols + 1
+        col = i % n_cols + 1
+
         # Iterate over each strategy
         for strategy in [0, 1]:
             # Create a mask for the current strategy
-            mask = X_raw_test[:, strategy + 4] == 1  # assuming the 'strategy' is the 5th and 6th feature in your input data
+            mask = X_raw_test[:,
+                   strategy + 4] == 1  # assuming the 'strategy' is the 5th and 6th feature in your input data
+            text_arr = [
+                f"{int(point[2])}-bit {int(point[0])}x{int(point[1])} @ RF={int(point[3])} ({strat_dict[strategy]})" for
+                point in X_raw_test if point[strategy + 4] == 1]
+
             # Create a scatter plot for each output feature and strategy
-            text_arr = [f"{int(point[2])}-bit {int(point[0])}x{int(point[1])} @ RF={int(point[3])} ({strat_dict[strategy]})" for point in X_raw_test if point[strategy + 4] == 1]
-            #print(text_arr)
             scatter = go.Scatter(
                 x=y_test[mask, i],
                 y=y_pred[mask, i],
@@ -269,11 +287,10 @@ if __name__ == "__main__":
                 name=f'{output_features[i]} - {strat_dict[strategy]}',
                 legendgroup=f'{output_features[i]}',
                 marker=dict(
-                    symbol=marker_shapes[strategy], # Use different marker shapes for different strategies
+                    symbol=marker_shapes[strategy],  # Use different marker shapes for different strategies
                     color=colors[i],
                     size=10,
                     opacity=0.7,
-
                 ),
                 hovertemplate=
                 '%{text}<br>' +
@@ -281,24 +298,26 @@ if __name__ == "__main__":
                 '<b>Predicted</b>: %{y}<br><extra></extra>',
                 text=text_arr
             )
-            fig.add_trace(scatter)
-    # Fix ref line to stay relative to plot itself
-    #fig.add_shape(type='line',  # Add a reference line (diagonal line from min to max values)
-   #                 x0=0, x1=overall_max,
-   #                 y0=0, y1=overall_max,
-    #                xref="x", yref="y",
-    #                line=dict(
-    #                  color="Black",
-   #                   width=3,
-    #                )
-    #)
+            # Add the scatter plot to the subplot
+            fig.add_trace(scatter, row=row, col=col)
+        #fig.update_yaxes(scaleanchor=f"x{col}", scaleratio=1, row=row, col=col)
+
+        # Add a reference line
+        fig.add_trace(
+            go.Scatter(
+                x=[np.min(y_test[:, i]), np.max(y_test[:, i])],
+                y=[np.min(y_test[:, i]), np.max(y_test[:, i])],
+                mode='lines',
+                line=dict(color='black'),
+                showlegend=False
+            ),
+            row=row, col=col
+        )
 
     # Set the layout
-    fig.update_layout(title='wa-hls4ml 1-Layer Dense Toy Model - Actual vs Predicted',
-                      xaxis=dict(title='Actual Value'),
-                      yaxis=dict(title='Predicted Value'))
+    fig.update_layout(height=1900, width=1900, title='wa-hls4ml 1-Layer Dense Toy Model - Actual vs Predicted')
 
-    pio.write_html(fig, file='wa-hls4ml_outputs.html', auto_open=False)
+    pio.write_html(fig, file='plots/wa-hls4ml_outputs.html', auto_open=False)
     py.plot(fig, filename='wa-hls4ml_outputs', auto_open=True)
     # Show the plot
     fig.show()
