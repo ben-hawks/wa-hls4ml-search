@@ -8,8 +8,12 @@ import csv
 import pandas as pd
 
 synth_types = {"hls":"CSynthesisReport", "rtl":"SynthesisReport"} #TODO Validate name of rtl synth object
+
+import hls4ml_rf_finder
+
 def main(args):
     success_count = {K: 0 for K in synth_types}
+    file_count = 0
     with open(args.base, "r") as b:
         with open(args.output, "a") as o:
             first_row = True
@@ -19,10 +23,12 @@ def main(args):
             rf_step = args.rf_step - 1
             for row in base_reader:
                 for rf in range(args.rf_lower, args.rf_upper, rf_step):
-                    rf_dict = {"rf":rf, "strategy":args.hls4ml_strat}
+                    rf_actual = hls4ml_rf_finder.set_closest_reuse_factor(rf, int(row["d_in"]), int(row["d_out"]))
+                    rf_dict = {"rf":rf_actual, "strategy":args.hls4ml_strat}
                     try:
                         filename = row["model_name"] + "_rf" + str(rf) + "_report.json"
                         with open(os.path.join(args.input, filename)) as f:
+                            file_count +=1
                             synth_report = {}
                             data = json.load(f)
                             if bool(data): #check if dict is empty, indicates failed synth run if so
@@ -35,6 +41,7 @@ def main(args):
                                         success_count[st] += 1
                                     else:
                                         rf_dict.update({st + "_synth_success": False})
+
                             else:
                                 for st in args.synth.split(","):
                                     rf_dict.update({st + "_synth_success": False})
@@ -53,6 +60,7 @@ def main(args):
     synth_success = {s: 0 for s in synth_types.keys()}
     print("Successful Synth Runs: ")
     print(success_count)
+    print("File Count: ",file_count)
 
 
 
@@ -68,7 +76,7 @@ if __name__ == "__main__":
     parser.add_argument('-u', '--rf_upper', type=int, default=1025)
     parser.add_argument('-l', '--rf_lower', type=int, default=1)
     parser.add_argument('-r', '--rf_step', type=int, default=512)
-    parser.add_argument( '--hls4ml_strat', type=str, default="latency")
+    parser.add_argument( '--hls4ml_strat', type=str, default="resource")
 
     args = parser.parse_args()
 

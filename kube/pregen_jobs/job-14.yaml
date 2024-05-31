@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: wa-hls4ml-search-pregen-$CONFIG
+  name: wa-hls4ml-search-pregen-14
   labels:
     jobgroup: wa-hls4ml-search
 spec:
@@ -22,7 +22,7 @@ spec:
               source /opt/Xilinx/Vivado/2020.1/settings64.sh &&
               echo "Setup Vivado, now doing hacks and running job..." &&
               python /opt/repo/wa-hls4ml-search/iter_manager.py
-              -f /opt/repo/wa-hls4ml-search/pregen_models/filelist_$CONFIG.csv
+              -f /opt/repo/wa-hls4ml-search/pregen_models/filelist_14.csv
         volumeMounts:
         - name: amd-xilinx-tools
           mountPath: /opt/Xilinx
