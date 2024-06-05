@@ -154,5 +154,5 @@ cython_debug/
 /.idea
 /kube/pregen_jobs_old
 /model_1
-/results
 *.png
+/results/Data/

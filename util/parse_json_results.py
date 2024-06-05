@@ -68,7 +68,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-o', '--output', type=str, default='../results/results.csv')
+    parser.add_argument('-o', '--output', type=str, default='../results/results_format_test.csv')
     parser.add_argument('-t', '--type', type=str, default='csv')
     parser.add_argument('-i', '--input', type=str, default='../results')
     parser.add_argument('-s', '--synth', type=str, default='hls')

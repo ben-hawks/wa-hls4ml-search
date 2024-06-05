@@ -135,7 +135,7 @@ def plot_loss(history):
 
 if __name__ == "__main__":
 
-    #dataset, preprocessors = preprocess('results/results.csv')
+    #dataset, preprocessors = preprocess('results/results_format_test.csv')
     #X, y = dataset[0], dataset[1]
     #preprocessor_x, preprocessor_y = preprocessors[0], preprocessors[1]
 
@@ -147,9 +147,9 @@ if __name__ == "__main__":
                              "BRAM_18K_hls", "DSP_hls"]
     categorical_feature_names = ["strategy"]
 
-    X, y, X_raw = preprocess('results/results.csv', input_features, output_features,
-                                                           binary_feature_names, numeric_feature_names,
-                                                           categorical_feature_names)
+    X, y, X_raw = preprocess('results/results_format_test.csv', input_features, output_features,
+                             binary_feature_names, numeric_feature_names,
+                             categorical_feature_names)
 
 
     # Split the data 70 - 20 - 10 train test val
