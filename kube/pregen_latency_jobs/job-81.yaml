@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: wa-hls4ml-search-pregen-81
+  name: wa-hls4ml-search-pregen-latency-81
   labels:
     jobgroup: wa-hls4ml-search
 spec:

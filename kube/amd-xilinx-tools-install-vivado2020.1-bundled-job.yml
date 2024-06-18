@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: amd-xilinx-tools-install-vivado2020.1
+  name: amd-xilinx-tools-install-vivado20201
   labels:
     jobgroup: wa-hls4ml-search
 spec:

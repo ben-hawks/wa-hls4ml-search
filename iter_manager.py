@@ -27,7 +27,7 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--rf_step', type=int, default=512)
     parser.add_argument('-o', '--output', type=str, default='/output')
     parser.add_argument("-p", "--prefix", type=str, default='/opt/repo/wa-hls4ml-search/')
-    parser.add_argument("-v", "--vsynth", type=str, action='store_true')
+    parser.add_argument("-v", "--vsynth", type=bool, action='store_true')
     parser.add_argument( '--hls4ml_strat', type=str, default="Resource")
     args = parser.parse_args()
 
