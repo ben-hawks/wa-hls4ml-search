@@ -1,5 +1,6 @@
 import os
 import sys
+import tarfile
 
 from tensorflow.keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
@@ -9,6 +10,10 @@ import yaml
 import json
 
 os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
+
+def make_tarfile(output_filename, source_dir):
+    with tarfile.open(output_filename, "w:gz") as tar:
+        tar.add(source_dir, arcname=os.path.basename(source_dir))
 
 def print_dict(d, indent=0):
     align = 20
@@ -28,6 +33,12 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     co = {}
     _add_supported_quantized_objects(co)
     model = load_model(model_file, custom_objects=co)
+
+    if not os.path.exists(output):
+        os.makedirs(output)
+
+    if not os.path.exists(os.path.join(output, "projects")):
+        os.makedirs(os.path.join(output, "projects"))
 
     json_name = output+"/"+name+"_rf"+str(rf)+"_report.json"
     if os.path.exists(json_name):
@@ -56,6 +67,9 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     # read the report and just save that?
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)
     hls4ml.report.read_vivado_report(hls_dir)
+
+    make_tarfile(output+"/projects/"+name+"_rf"+str(rf)+".tar.gz", hls_dir)
+
 
     with open(json_name, "w") as outfile:
         json.dump(report_json, outfile)

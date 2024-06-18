@@ -156,3 +156,5 @@ cython_debug/
 /model_1
 *.png
 /results/Data/
+3_DataFed_Tutorial.ipynb
+datapathraw_data.txt

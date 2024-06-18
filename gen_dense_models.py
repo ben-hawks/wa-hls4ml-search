@@ -72,10 +72,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-o', '--output', type=str, default='pregen_models')
-    parser.add_argument('-p', '--precision_max', type=int, default=14)
+    parser.add_argument('-p', '--precision_max', type=int, default=16)
     parser.add_argument('-s', '--precision_step', type=int, default=2)
-    parser.add_argument('-d', '--dense_max', type=int, default=256)
-    parser.add_argument('-i', '--dense_step', type=int, default=32)
+    parser.add_argument('-d', '--dense_max', type=int, default=64)
+    parser.add_argument('-i', '--dense_step', type=int, default=2)
 
     args = parser.parse_args()
 
