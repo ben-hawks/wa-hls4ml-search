@@ -29,7 +29,7 @@ def print_dict(d, indent=0):
 def main(args):
     run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj, args.vsynth, args.hls4ml_strat)
 
-def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=False, strat="latency"):
+def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency"):
     co = {}
     _add_supported_quantized_objects(co)
     model = load_model(model_file, custom_objects=co)
