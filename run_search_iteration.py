@@ -62,6 +62,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     print("compile hls model")
     hls_model.write()
     hls_model.compile()
+    print(name, " - vsynth enabled: ", vsynth)
     hls_model.build(csim=False, vsynth=vsynth)
 
     # read the report and just save that?
