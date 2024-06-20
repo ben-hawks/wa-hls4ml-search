@@ -27,7 +27,7 @@ def print_dict(d, indent=0):
 
 
 def main(args):
-    run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj, False, args.hls4ml_strat)
+    run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj, args.vsynth, args.hls4ml_strat)
 
 def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=False, strat="latency"):
     co = {}
@@ -83,6 +83,7 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', type=str, default='/output')
     parser.add_argument('-h', '--hlsproj', type=str, default='/project/hls_proj/')
     parser.add_argument('-r', '--rf', type=int, default=1)
+    parser.add_argument("-v", "--vsynth", action='store_true')
     parser.add_argument( '--hls4ml_strat', type=str, default="Resource")
 
     args = parser.parse_args()
