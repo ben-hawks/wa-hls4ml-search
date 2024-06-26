@@ -9,7 +9,13 @@ import argparse
 import yaml
 import json
 
-os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
+try:
+    os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
+    os.environ['PATH'] = os.environ['XILINX_VITIS'] + '/bin:' + os.environ['PATH']
+    hls4ml_backend = 'Vitis'
+except KeyError:
+    os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
+    hls4ml_backend = 'Vivado'
 
 def make_tarfile(output_filename, source_dir):
     with tarfile.open(output_filename, "w:gz") as tar:
@@ -49,7 +55,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     if not os.path.exists(hls_dir):
         os.makedirs(hls_dir)
 
-    config = hls4ml.utils.config_from_keras_model(model, granularity='name')
+    config = hls4ml.utils.config_from_keras_model(model, granularity='name', backend=hls4ml_backend)
     config['Model']['ReuseFactor'] = rf
     config['Model']['Strategy'] = strat
     print("-----------------------------------")

@@ -25,11 +25,11 @@ spec:
           mountPath: /ramdisk
         resources:
           limits:
-            memory: 64Gi
+            memory: 48Gi
             cpu: "3"
           requests:
-            memory: 32Gi
-            cpu: "2"
+            memory: 48Gi
+            cpu: "3"
       nodeSelector:
         nautilus.io/disktype: nvme
       affinity:
@@ -48,7 +48,7 @@ spec:
       volumes:
       - name: amd-xilinx-tools
         persistentVolumeClaim:
-          claimName: amd-xilinx-tools
+          claimName: amd-xilinx-tools-backup
       - name: wa-search-output
         persistentVolumeClaim:
           claimName: wa-search-output
