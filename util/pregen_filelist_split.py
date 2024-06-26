@@ -10,13 +10,13 @@ import os
 #   - `example_3.csv` (row 401)
 
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
-filename = "../pregen_latency_models/filelist.csv"
+filename = "../pregen_2layer_models/filelist.csv"
 
 full_file_path = os.path.join(CURRENT_DIR, filename)
 file_name = os.path.splitext(full_file_path)[0]
 
 #384 files into ~20 jobs
-rows_per_csv = 100
+rows_per_csv = 500
 
 with open(filename) as infile:
     reader = csv.DictReader(infile)
