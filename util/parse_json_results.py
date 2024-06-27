@@ -39,8 +39,10 @@ def main(args):
                                         synth_report.update(synth_report_specific)
                                         rf_dict.update({st + "_synth_success": True})
                                         success_count[st] += 1
+                                        print('Success: ', row["model_name"], st, rf_actual)
                                     else:
                                         rf_dict.update({st + "_synth_success": False})
+                                        print('Fail: ', row["model_name"], st, rf_actual)
 
                             else:
                                 for st in args.synth.split(","):
