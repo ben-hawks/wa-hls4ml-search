@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: amd-xilinx-tools-backup
+  name: amd-xilinx-tools-rook
 spec:
   storageClassName: rook-cephfs
   accessModes:

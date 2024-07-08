@@ -59,7 +59,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     config['Model']['ReuseFactor'] = rf
     config['Model']['Strategy'] = strat
     for layer in config['LayerName'].keys():
-        if 'Dense' in layer:
+        if 'dense' in layer.lower() or 'conv' in layer.lower():
             config['LayerName'][layer]['ReuseFactor'] = rf
     print("-----------------------------------")
     print_dict(config)
