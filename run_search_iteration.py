@@ -87,11 +87,11 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     try:
         print("Opening ", os.path.join(hls_dir,"vivado_synth.tcl"), " for hack in flatten_hierarchy = none...")
         with open(os.path.join(hls_dir,"vivado_synth.tcl"), "r") as sources:
-            file_data = sources.read()
-        print(file_data)
-        file_data = file_data.replace("synth_design", "synth_design -flatten_hierarchy none")
+            vsynth_script_data = sources.read()
+        print(vsynth_script_data)
+        vsynth_script_data = vsynth_script_data.replace("synth_design -top ", "synth_design -flatten_hierarchy none -top ")
         with open(os.path.join(hls_dir,"vivado_synth.tcl"), "w") as sources:
-            sources.write(file_data)
+            sources.write(vsynth_script_data)
 
     except Exception as e:
         print("Unable to open ", os.path.join(hls_dir,"vivado_synth.tcl"))
