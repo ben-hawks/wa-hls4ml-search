@@ -70,6 +70,31 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
 
     print("compile hls model")
     hls_model.write()
+
+    import re
+    ## Hack in some changes for the build_prj and vivado_synth script
+    try:
+        print("Opening ", os.path.join(hls_dir,"build_prj.tcl"), " for hack in stack size edit...")
+        with open(os.path.join(hls_dir,"build_prj.tcl"), "r") as sources:
+            lines = sources.readlines()
+        with open(os.path.join(hls_dir,"build_prj.tcl"), "w") as sources:
+            for line in lines:
+                sources.write(re.sub(r'exec vivado ', 'exec vivado -stack 100000 ', line))
+    except Exception as e:
+        print("Unable to open ", os.path.join(hls_dir,"build_prj.tcl"))
+        print(e)
+    try:
+        print("Opening ", os.path.join(hls_dir,"vivado_synth.tcl"), " for hack in flatten_hierarchy = none...")
+        with open(os.path.join(hls_dir,"vivado_synth.tcl"), "r") as sources:
+            lines = sources.readlines()
+        with open(os.path.join(hls_dir,"vivado_synth.tcl"), "w") as sources:
+            for line in lines:
+                sources.write(re.sub(r'^synth_design', 'synth_design ‑flatten_hierarchy none', line))
+    except Exception as e:
+        print("Unable to open ", os.path.join(hls_dir,"vivado_synth.tcl"))
+        print (e)
+
+
     hls_model.compile()
     print(name, " - vsynth enabled: ", vsynth)
     hls_model.build(csim=False, vsynth=vsynth)
