@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: wa-hls4ml-search-pregen-2layer-1
+  name: wa-hls4ml-search-pregen-2layer-test
   labels:
     jobgroup: wa-hls4ml-search
 spec:
@@ -46,7 +46,10 @@ spec:
       initContainers:
       - name: init-clone-repo
         image: alpine/git
+        command: ["/bin/sh"]
         args:
+          - -l
+          - -c
           - >-
               if cd /opt/repo/wa-hls4ml-search; 
               then git pull; 
@@ -55,6 +58,13 @@ spec:
         volumeMounts:
           - name: git-repo
             mountPath: /opt/repo
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: "2.4"
+          requests:
+            memory: 7Gi
+            cpu: "2"
       securityContext:
         runAsUser: 0
         runAsGroup: 0
