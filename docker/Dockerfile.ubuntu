@@ -34,5 +34,22 @@ RUN echo "source /venv/bin/activate" >> ~/.bashrc
 
 RUN cat ~/.bashrc
 
+RUN sudo apt-get update -y && \
+    sudo apt-get install --no-install-recommends -y \
+    curl \
+    libtinfo5 \
+    libc6-dev-i386 \
+    net-tools \
+    graphviz \
+    make \
+    unzip \
+    g++ \
+    xvfb \
+    git \
+    libncursesw5 \
+    libc6-dev-i386  && \
+    sudo apt-get clean && \
+    sudo rm -rf /var/lib/apt/lists/*
+
 SHELL ["/bin/bash", "-c", "-l"]
 ENTRYPOINT source /venv/bin/activate &&

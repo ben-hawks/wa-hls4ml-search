@@ -77,7 +77,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         print("Opening ", os.path.join(hls_dir,"build_prj.tcl"), " for hack in stack size edit...")
         with open(os.path.join(hls_dir,"build_prj.tcl"), "r") as sources:
             file_data = sources.read()
-        file_data = file_data.replace("exec vivado ", "exec vivado -stack 2000 ")
+        #file_data = file_data.replace("exec vivado ", "exec vivado -stack 2000 ")
         #file_data = file_data.replace("vivado_synth.tcl ", "vivado_synth.tcl -tclargs -memory 1600000 ")
         print(file_data)
         with open(os.path.join(hls_dir,"build_prj.tcl"), "w") as sources:
@@ -90,8 +90,8 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         print("Opening ", os.path.join(hls_dir, "vivado_synth.tcl"), " for hack in stack size edit...")
         with open(os.path.join(hls_dir, "vivado_synth.tcl"), "r") as sources:
             vsynth_script_data = sources.read()
-        vsynth_script_data = vsynth_script_data.replace("synth_design -top ",
-                                                        "synth_design -flatten_hierarchy none -top ")
+        #vsynth_script_data = vsynth_script_data.replace("synth_design -top ",
+        #                                                "synth_design -flatten_hierarchy none -top ")
         print(vsynth_script_data)
         with open(os.path.join(hls_dir, "vivado_synth.tcl"), "r+") as sources:
             if "synth_design -flatten_hierarchy none -top " in vsynth_script_data:
