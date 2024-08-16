@@ -24,7 +24,7 @@ spec:
               python /opt/repo/wa-hls4ml-search/iter_manager.py
               -f /opt/repo/wa-hls4ml-search/pregen_latency_models/filelist_2.csv
               -o /output/latency_run
-              --vsynth
+              --hls4ml_strat latency
               --rf_upper 129
               --rf_lower 1
               --rf_step 32
