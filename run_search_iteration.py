@@ -78,7 +78,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         with open(os.path.join(hls_dir,"build_prj.tcl"), "r") as sources:
             file_data = sources.read()
         file_data = file_data.replace("exec vivado ", "exec vivado -stack 200000 ")
-        file_data = file_data.replace("vivado_synth.tcl ", "vivado_synth.tcl -tclargs -memory 16000")
+        file_data = file_data.replace("vivado_synth.tcl ", "vivado_synth.tcl -tclargs -memory 16000 ")
         print(file_data)
         with open(os.path.join(hls_dir,"build_prj.tcl"), "w") as sources:
             sources.write(file_data)

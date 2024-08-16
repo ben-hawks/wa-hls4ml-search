@@ -38,10 +38,10 @@ spec:
           mountPath: /output
         resources:
           limits:
-            memory: 8Gi
+            memory: 32Gi
             cpu: "2.4"
           requests:
-            memory: 7Gi
+            memory: 32Gi
             cpu: "2"
       initContainers:
       - name: init-clone-repo
