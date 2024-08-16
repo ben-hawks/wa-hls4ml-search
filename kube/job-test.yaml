@@ -9,14 +9,17 @@ spec:
     spec:
       containers:
       - name: hls4ml-docker
-        image:  bhawks/wa-hls4ml-search:centos81-vivado-2020.1-minimal
+        image:  bhawks/wa-hls4ml-search:ubuntu18.04-vivado-2020.1-minimal
         terminationMessagePolicy: FallbackToLogsOnError
         command: ["/bin/bash"]
+        env:
+          - name: LD_PRELOAD
+            value: /lib/x86_64-linux-gnu/libudev.so.1
         args:
           - -l
           - -c
           - >-
-              cat /home/vivado/.bashrc &&
+              cat /home/xilinx/.bashrc &&
               source /venv/bin/activate && 
               echo "activated venv" &&
               source /opt/Xilinx/Vivado/2020.1/settings64.sh &&

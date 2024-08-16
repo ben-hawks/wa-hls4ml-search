@@ -1,4 +1,4 @@
-FROM bhawks/vivado-docker:centos81-vivado2020.1-minimal as build
+FROM xilinx-ubuntu-18.04.2-user:v2020.1 as build
 LABEL authors="bhawks"
 
 # Install Miniforge
@@ -7,7 +7,7 @@ RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/downloa
     && bash Miniforge3-$(uname)-$(uname -m).sh -b -p /opt/conda \
     && source "/opt/conda/etc/profile.d/conda.sh" \
     && echo "export PATH=/opt/conda/bin:$PATH" > /etc/profile.d/conda.sh \
-USER vivado
+USER xilinx
 ENV PATH /opt/conda/bin:$PATH
 #setups stuff
 RUN echo "source activate base" > ~/.bashrc
@@ -23,12 +23,12 @@ RUN conda-pack -n hls4ml -o /tmp/env.tar && \
 
 RUN /venv/bin/conda-unpack
 
-FROM bhawks/vivado-docker:centos81-vivado2020.1-minimal as deploy
+FROM xilinx-ubuntu-18.04.2-user:v2020.1 as deploy
 
-COPY --from=build --chown=vivado /venv /venv
+COPY --from=build --chown=xilinx /venv /venv
 
-USER vivado
-WORKDIR /home/vivado
+USER xilinx
+WORKDIR /home/xilinx
 
 RUN echo "source /venv/bin/activate" >> ~/.bashrc
 
