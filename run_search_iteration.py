@@ -84,18 +84,23 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     except Exception as e:
         print("Unable to open ", os.path.join(hls_dir,"build_prj.tcl"))
         print(e)
-    try:
-        print("Opening ", os.path.join(hls_dir,"vivado_synth.tcl"), " for hack in flatten_hierarchy = none...")
-        with open(os.path.join(hls_dir,"vivado_synth.tcl"), "r") as sources:
-            vsynth_script_data = sources.read()
-        print(vsynth_script_data)
-        vsynth_script_data = vsynth_script_data.replace("synth_design -top ", "synth_design -flatten_hierarchy none -top ")
-        with open(os.path.join(hls_dir,"vivado_synth.tcl"), "w") as sources:
-            sources.write(vsynth_script_data)
 
+    try:
+        print("Opening ", os.path.join(hls_dir, "vivado_synth.tcl"), " for hack in stack size edit...")
+        with open(os.path.join(hls_dir, "vivado_synth.tcl"), "r") as sources:
+            vsynth_script_data = sources.read()
+        vsynth_script_data = vsynth_script_data.replace("synth_design -top ",
+                                                        "synth_design -flatten_hierarchy none -top ")
+        print(vsynth_script_data)
+        with open(os.path.join(hls_dir, "vivado_synth.tcl"), "r+") as sources:
+            if "synth_design -flatten_hierarchy none -top " in vsynth_script_data:
+                print("substring found in new script data, writing to file")
+                sources.write(vsynth_script_data)
+            else:
+                print("Validation failed: 'synth_design -top ' Substring not replaced.")
     except Exception as e:
-        print("Unable to open ", os.path.join(hls_dir,"vivado_synth.tcl"))
-        print (e)
+        print("Unable to open ", os.path.join(hls_dir, "vivado_synth.tcl"))
+        print(e)
 
 
 

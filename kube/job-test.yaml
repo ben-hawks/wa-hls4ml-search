@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: wa-hls4ml-search-pregen-2layer-$CONFIG
+  name: wa-hls4ml-search-pregen-2layer-1
   labels:
     jobgroup: wa-hls4ml-search
 spec:
@@ -22,12 +22,13 @@ spec:
               source /opt/Xilinx/Vivado/2020.1/settings64.sh &&
               echo "Setup Vivado, running job..." &&
               python /opt/repo/wa-hls4ml-search/iter_manager.py
-              -f /opt/repo/wa-hls4ml-search/pregen_2layer_models/filelist_$CONFIG.csv
-              -o /output/2layer_run
+              -f /opt/repo/wa-hls4ml-search/pregen_2layer_models/filelist_1.csv
+              -o /output/2layer_run_vsynth_test
               --hls4ml_strat resource
               --rf_upper 4097
               --rf_lower 1024
               --rf_step 1024
+              --vsynth
         volumeMounts:
         - name: amd-xilinx-tools-rook
           mountPath: /opt/Xilinx
@@ -37,21 +38,20 @@ spec:
           mountPath: /output
         resources:
           limits:
-            memory: 3.5Gi
+            memory: 8Gi
             cpu: "2.4"
           requests:
-            memory: 3Gi
+            memory: 7Gi
             cpu: "2"
       initContainers:
       - name: init-clone-repo
         image: alpine/git
         args:
-          - clone
-          - --single-branch
-          - https://github.com/ben-hawks/wa-hls4ml-search
-          - -b
-          - main
-          - /opt/repo/wa-hls4ml-search
+          - >-
+              if cd /opt/repo/wa-hls4ml-search; 
+              then git pull; 
+              else git clone https://github.com/ben-hawks/wa-hls4ml-search -b main /opt/repo/wa-hls4ml-search;
+              fi
         volumeMounts:
           - name: git-repo
             mountPath: /opt/repo
@@ -84,7 +84,7 @@ spec:
         persistentVolumeClaim:
           claimName: wa-search-output
       - name: git-repo
-        emptyDir:
-          sizeLimit: 5Gi
+        persistentVolumeClaim:
+            claimName: wa-search-git
       restartPolicy: Never
   backoffLimit: 5
