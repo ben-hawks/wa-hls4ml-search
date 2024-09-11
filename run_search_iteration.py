@@ -35,7 +35,7 @@ def print_dict(d, indent=0):
 def main(args):
     run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj, args.vsynth, args.hls4ml_strat)
 
-def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency"):
+def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/output/project/hls_proj', vsynth=True, strat="latency"):
     co = {}
     _add_supported_quantized_objects(co)
     model = load_model(model_file, custom_objects=co)
@@ -51,8 +51,9 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         print(json_name + " Already exists, skipping...")
         return
 
-    hls_dir = hlsproj + "/" + name + "_rf" + str(rf)
+    hls_dir = os.path.join(hlsproj,name+"_rf"+str(rf))
     if not os.path.exists(hls_dir):
+        print("Creating directory: ", hls_dir)
         os.makedirs(hls_dir)
 
     config = hls4ml.utils.config_from_keras_model(model, granularity='name', backend=hls4ml_backend)
@@ -65,53 +66,22 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     print_dict(config)
     print("-----------------------------------")
     hls_model = hls4ml.converters.convert_from_keras_model(
-        model, hls_config=config, output_dir=hls_dir, part=part
+        model, hls_config=config, output_dir=hls_dir, part=part, backend=hls4ml_backend
     )
 
     print("compile hls model")
     hls_model.write()
 
 
-    ## Hack in some changes for the build_prj and vivado_synth script
-    try:
-        print("Opening ", os.path.join(hls_dir,"build_prj.tcl"), " for hack in stack size edit...")
-        with open(os.path.join(hls_dir,"build_prj.tcl"), "r") as sources:
-            file_data = sources.read()
-        #file_data = file_data.replace("exec vivado ", "exec vivado -stack 2000 ")
-        #file_data = file_data.replace("vivado_synth.tcl ", "vivado_synth.tcl -tclargs -memory 1600000 ")
-        print(file_data)
-        with open(os.path.join(hls_dir,"build_prj.tcl"), "w") as sources:
-            sources.write(file_data)
-    except Exception as e:
-        print("Unable to open ", os.path.join(hls_dir,"build_prj.tcl"))
-        print(e)
-
-    try:
-        print("Opening ", os.path.join(hls_dir, "vivado_synth.tcl"), " for hack in stack size edit...")
-        with open(os.path.join(hls_dir, "vivado_synth.tcl"), "r") as sources:
-            vsynth_script_data = sources.read()
-        #vsynth_script_data = vsynth_script_data.replace("synth_design -top ",
-        #                                                "synth_design -flatten_hierarchy none -top ")
-        print(vsynth_script_data)
-        with open(os.path.join(hls_dir, "vivado_synth.tcl"), "r+") as sources:
-            if "synth_design -flatten_hierarchy none -top " in vsynth_script_data:
-                print("substring found in new script data, writing to file")
-                sources.write(vsynth_script_data)
-            else:
-                print("Validation failed: 'synth_design -top ' Substring not replaced.")
-    except Exception as e:
-        print("Unable to open ", os.path.join(hls_dir, "vivado_synth.tcl"))
-        print(e)
-
-
-
     #hls_model.compile()
     print(name, " - vsynth enabled: ", vsynth)
-    hls_model.build(csim=False, vsynth=vsynth)
+    hls_model.build(csim=False, vsynth=vsynth, cosim=False, export=False)
 
     # read the report and just save that?
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)
     hls4ml.report.read_vivado_report(hls_dir)
+
+
 
     make_tarfile(output+"/projects/"+name+"_rf"+str(rf)+".tar.gz", hls_dir)
 

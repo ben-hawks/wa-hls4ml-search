@@ -1,4 +1,4 @@
-FROM xilinx-ubuntu-18.04.2-user:v2020.1 as build
+FROM xilinx-ubuntu-18.04.2-user:v2020.1 AS build
 LABEL authors="bhawks"
 
 # Install Miniforge
@@ -8,7 +8,7 @@ RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/downloa
     && source "/opt/conda/etc/profile.d/conda.sh" \
     && echo "export PATH=/opt/conda/bin:$PATH" > /etc/profile.d/conda.sh \
 USER xilinx
-ENV PATH /opt/conda/bin:$PATH
+ENV PATH=/opt/conda/bin:$PATH
 #setups stuff
 RUN echo "source activate base" > ~/.bashrc
 #install packages
@@ -23,7 +23,7 @@ RUN conda-pack -n hls4ml -o /tmp/env.tar && \
 
 RUN /venv/bin/conda-unpack
 
-FROM xilinx-ubuntu-18.04.2-user:v2020.1 as deploy
+FROM xilinx-ubuntu-18.04.2-user:v2020.1 AS deploy
 
 COPY --from=build --chown=xilinx /venv /venv
 
@@ -34,22 +34,9 @@ RUN echo "source /venv/bin/activate" >> ~/.bashrc
 
 RUN cat ~/.bashrc
 
-RUN sudo apt-get update -y && \
-    sudo apt-get install --no-install-recommends -y \
-    curl \
-    libtinfo5 \
-    libc6-dev-i386 \
-    net-tools \
-    graphviz \
-    make \
-    unzip \
-    g++ \
-    xvfb \
-    git \
-    libncursesw5 \
-    libc6-dev-i386  && \
-    sudo apt-get clean && \
-    sudo rm -rf /var/lib/apt/lists/*
+COPY files/entrypoint.sh /entrypoint.sh
+RUN sudo chown xilinx:xilinx /entrypoint.sh
+RUN sudo chmod +x /entrypoint.sh
 
 SHELL ["/bin/bash", "-c", "-l"]
-ENTRYPOINT source /venv/bin/activate &&
+ENTRYPOINT /entrypoint.sh
