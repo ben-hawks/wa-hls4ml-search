@@ -34,9 +34,11 @@ RUN echo "source /venv/bin/activate" >> ~/.bashrc
 
 RUN cat ~/.bashrc
 
-COPY files/entrypoint.sh /entrypoint.sh
-RUN sudo chown xilinx:xilinx /entrypoint.sh
-RUN sudo chmod +x /entrypoint.sh
+# Add Tini - https://stackoverflow.com/questions/55733058/vivado-synthesis-hangs-in-docker-container-spawned-by-jenkins
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN sudo chmod +x /tini
 
 SHELL ["/bin/bash", "-c", "-l"]
-ENTRYPOINT /entrypoint.sh
+ENTRYPOINT ["/tini", "--"]
+CMD ["/bin/bash"]

@@ -9,9 +9,9 @@ spec:
     spec:
       containers:
       - name: hls4ml-docker
-        image:  bhawks/wa-hls4ml-search:ubuntu18.04-vivado-2020.1-minimal
+        image:  bhawks/wa-hls4ml-search:latest
         terminationMessagePolicy: FallbackToLogsOnError
-        command: ["/bin/bash"]
+        command: ["/tini", "--", "/bin/bash"]
         env:
           - name: LD_PRELOAD
             value: /lib/x86_64-linux-gnu/libudev.so.1
@@ -41,10 +41,10 @@ spec:
           mountPath: /output
         resources:
           limits:
-            memory: 8Gi
+            memory: 16Gi
             cpu: "3"
           requests:
-            memory: 8Gi
+            memory: 16Gi
             cpu: "3"
       initContainers:
       - name: init-clone-repo
