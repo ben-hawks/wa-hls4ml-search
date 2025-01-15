@@ -1,6 +1,8 @@
 import os
+import sys
 import json
 import uuid
+from tqdm import tqdm
 from keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
 import hls4ml
@@ -16,10 +18,20 @@ except KeyError:
     except KeyError:
         hls4ml_backend = 'Vivado'
 
+class HiddenPrints:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
+
+
 def process_json_files(input_dir, output_file, model_dir):
     processed_data = []
 
-    for filename in os.listdir(input_dir):
+    for filename in tqdm(os.listdir(input_dir)):
         if filename.endswith("_report.json"):
             file_path = os.path.join(input_dir, filename)
             model_name, rf_str = filename.split('_rf')
@@ -54,13 +66,13 @@ def process_json_files(input_dir, output_file, model_dir):
                     'lut': json_data['VivadoSynthReport']['LUT'],
                     'uram': json_data['VivadoSynthReport']['URAM'],
                 }
-
-                hls_config = hls4ml.utils.config_from_keras_model(model, granularity='name', backend=hls4ml_backend)
-                hls_config['Model']['ReuseFactor'] = reuse_factor
-                hls_config['Model']['Strategy'] = "Resource"
-                for layer in hls_config['LayerName'].keys():
-                    if 'dense' in layer.lower() or 'conv' in layer.lower():
-                        hls_config['LayerName'][layer]['ReuseFactor'] = reuse_factor
+                with HiddenPrints(): # suppress the output of hls4ml when opening and parsing the model
+                    hls_config = hls4ml.utils.config_from_keras_model(model, granularity='name', backend=hls4ml_backend)
+                    hls_config['Model']['ReuseFactor'] = reuse_factor
+                    hls_config['Model']['Strategy'] = "Resource"
+                    for layer in hls_config['LayerName'].keys():
+                        if 'dense' in layer.lower() or 'conv' in layer.lower():
+                            hls_config['LayerName'][layer]['ReuseFactor'] = reuse_factor
 
                 processed_entry = {
                     'meta_data': meta_data,
@@ -82,7 +94,7 @@ def process_json_files(input_dir, output_file, model_dir):
 
 if __name__ == "__main__":
     model_dir = '../pregen_2layer_models'
-    input_dir = '/home/bhawks/2layer_run_vsynth_9-23'
-    output_file = 'processed_data.json'
+    input_dir = '/home/bhawks/2layer_run_vsynth_9-25'
+    output_file = 'wa-hls4ml_processed_vsynth_data.json'
 
     process_json_files(input_dir, output_file, model_dir)

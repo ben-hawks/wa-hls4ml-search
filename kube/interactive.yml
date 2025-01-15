@@ -10,12 +10,12 @@ spec:
       containers:
       - name: ubuntu
         image:  ubuntu
-        command: ["sh", "-c", "echo 'Interactive Pod, waiting for login' && sleep infinity"]
+        command: ["sh","-l", "-c", "echo 'Interactive Pod, waiting for login' && sleep infinity"]
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
-        - name: amd-xilinx-tools
-          mountPath: /opt/Xilinx
-        - name: wa-search-output
+        - name: xilinx-tools
+          mountPath: /tools/Xilinx
+        - name: wa-search-output-backup
           mountPath: /results
         resources:
           limits:
@@ -24,8 +24,6 @@ spec:
           requests:
             memory: 2Gi
             cpu: "2"
-      nodeSelector:
-        nautilus.io/disktype: nvme
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -40,11 +38,11 @@ spec:
                     values:
                       - "true"
       volumes:
-      - name: amd-xilinx-tools
+      - name: xilinx-tools
         persistentVolumeClaim:
-          claimName: amd-xilinx-tools
-      - name: wa-search-output
+          claimName: xilinx-tools
+      - name: wa-search-output-backup
         persistentVolumeClaim:
-          claimName: wa-search-output
+          claimName: wa-search-output-backup
       restartPolicy: Never
   backoffLimit: 5

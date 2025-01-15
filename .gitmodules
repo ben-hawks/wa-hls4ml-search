@@ -1,3 +1,6 @@
 [submodule "vivado-docker"]
 	path = vivado-docker
 	url = https://github.com/ben-hawks/vivado-docker.git
+[submodule "docker/xilinx-docker"]
+	path = docker/xilinx-docker
+	url = https://gitlab.com/rjmoss/xilinx-docker.git
