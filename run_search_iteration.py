@@ -8,6 +8,8 @@ import hls4ml
 import argparse
 import yaml
 import json
+from gen_dense_models_v2 import generate_model_from_config
+from util.json_dataset_processor import process_json_entry
 
 try:
     os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
@@ -35,18 +37,34 @@ def print_dict(d, indent=0):
 def main(args):
     run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj, args.vsynth, args.hls4ml_strat)
 
-def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency"):
-    co = {}
-    _add_supported_quantized_objects(co)
-    model = load_model(model_file, custom_objects=co)
+def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency", precision=None, config_str=None):
 
+    if config_str is None: # load model from file, else generate model from config string
+        co = {}
+        _add_supported_quantized_objects(co)
+        model = load_model(model_file, custom_objects=co)
+    else:
+        model = generate_model_from_config(config_str, precision, output_dir=".", save_model=False)
+        model.summary()
+
+    json_name = output+"/raw_reports/"+name+"_rf"+str(rf)+"_report.json"
+    processed_json_name = output+"/"+name+"_rf"+str(rf)+"_processed.json"
+
+    # Ensure parent directories exist
     if not os.path.exists(output):
+        print(output)
         os.makedirs(output)
 
     if not os.path.exists(os.path.join(output, "projects")):
         os.makedirs(os.path.join(output, "projects"))
 
-    json_name = output+"/"+name+"_rf"+str(rf)+"_report.json"
+    if not os.path.exists(os.path.dirname(json_name)):
+        os.makedirs(os.path.dirname(json_name))
+
+    if not os.path.exists(os.path.dirname(processed_json_name)):
+        os.makedirs(os.path.dirname(processed_json_name))
+
+
     if os.path.exists(json_name):
         print(json_name + " Already exists, skipping...")
         return
@@ -81,13 +99,16 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)
     hls4ml.report.read_vivado_report(hls_dir)
 
-
-
-    make_tarfile(output+"/projects/"+name+"_rf"+str(rf)+".tar.gz", hls_dir)
-
-
     with open(json_name, "w") as outfile:
         json.dump(report_json, outfile)
+
+    processed_json, model_uuid = process_json_entry(model, config, report_json)
+    with open(processed_json_name, "w") as outfile:
+        json.dump(processed_json, outfile)
+
+    make_tarfile(output + "/projects/" + model_uuid + ".tar.gz", hls_dir)
+
+    print("Finished running hls4ml synthesis for ", name, " with RF of ", rf)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
