@@ -65,8 +65,8 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         os.makedirs(os.path.dirname(processed_json_name))
 
 
-    if os.path.exists(json_name):
-        print(json_name + " Already exists, skipping...")
+    if os.path.exists(processed_json_name):
+        print(processed_json_name + " Already exists, skipping...")
         return
 
     hls_dir = os.path.join(hlsproj,name+"_rf"+str(rf))
