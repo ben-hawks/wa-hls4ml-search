@@ -26,7 +26,7 @@ spec:
               echo "Setup Vivado, running job..." &&
               python /opt/repo/wa-hls4ml-search/iter_manager_v2.py
               -f /opt/repo/wa-hls4ml-search/pregen_3layer_models/filelist_111.csv
-              -o /output/2layer_run_vsynth
+              -o /output/3layer_run_vsynth
               --hls4ml_strat resource
               --rf_upper 4097
               --rf_lower 1024
