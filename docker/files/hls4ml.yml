@@ -11,6 +11,7 @@ dependencies:
   - pip
   - pip:
     - pytest-randomly
+    - rule4ml
     - onnx
     - matplotlib
     - pandas
