@@ -48,7 +48,7 @@ class ModelGenerator:
         This will filter only layers that are eligible (its a form of verification)
         """
 
-        if 'dense' in last_layer.name or last_layer == Flatten:
+        if 'dense' in last_layer.name:
             # chooses a random layer and generates config for it. Treats layer + subsequent blocks as a unit
             layer_type = random.choice(self.dense_next_layers)
             hyper_params = self.config_layer(layer_type, dense_params)
@@ -68,7 +68,7 @@ class ModelGenerator:
 
     def gen_network(self, total_layers: int = 3, params: dict = {'dense_lb': 32, 'dense_ub': 1024}) -> Model:
         """
-        In its current form will make a CNN, pool, CNN, batch norm, flatten, dense.
+        In its current form will make a dense -> dense -> ... -> dense.
         """
 
         # select an init layer to determine input size
