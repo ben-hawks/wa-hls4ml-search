@@ -13,7 +13,6 @@ clip_base_2 = lambda x: 2**round(np.log2(x))
 class ModelGenerator:
     # TODO: Weighting for even dist
     # TODO: add extra q layers, quantized bits
-    # TODO: Fix first layer never generating config
  
     dense_layers = [Dense, QDense]
     conv_layers = [Conv2D, QConv2D, QSeparableConv2D]
@@ -59,7 +58,10 @@ class ModelGenerator:
             flatten = random.random() < bounds['flatten_chance']
             pooling = random.random() < bounds['pooling']
             padding = random.choice(["same", "valid"])
-            kernel_size = random.randint(1, min(bounds['last_layer_shape'][0], bounds['last_layer_shape'][1]))
+
+            # have to guarantee the range is > (1, 1)
+            min_dim = min(bounds['last_layer_shape'][0], bounds['last_layer_shape'][1])
+            kernel_size = random.randint(1, max(2, min_dim))
             stride = random.randint(1, 3)
 
             hyper_params = {'out_filters': out_filters, 'kernel': (kernel_size, kernel_size), 
@@ -79,12 +81,13 @@ class ModelGenerator:
 
         if 'dense' in last_layer.name:
             # chooses a random layer and generates config for it. Treats layer + subsequent blocks as a unit
-            layer_type = random.choice(self.dense_layers)
+            layer_type = random.choice(self.dense_layers) if input_layer == None else last_layer
 
             hyper_params = self.config_layer(layer_type, params)
 
+            last_layer = last_layer if input_layer == None else input_layer
             layer_choice = [layer_type(hyper_params['size'], 
-                use_bias=hyper_params['use_bias'])(last_layer)]
+                        use_bias=hyper_params['use_bias'])(last_layer)]
 
             if self.q_on:
                 if hyper_params['activation']:
@@ -101,10 +104,11 @@ class ModelGenerator:
             self.layer_depth += 1
             layer_choice[-1].name = 'dense'
         elif 'conv' in last_layer.name:
-            layer_type = random.choice(self.conv_layers)
-            params['last_layer_shape'] = last_layer.shape[1:]
+            layer_type = random.choice(self.conv_layers) if input_layer == None else last_layer
+            params['last_layer_shape'] = last_layer.shape[1:]  if input_layer == None else params['last_layer_shape']
             hyper_params = self.config_layer(layer_type, params)
 
+            last_layer = last_layer if input_layer == None else input_layer
             layer_choice = [layer_type(hyper_params['out_filters'], hyper_params['kernel'], strides=hyper_params['stride'],
                                     use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
 
@@ -126,7 +130,7 @@ class ModelGenerator:
             
             self.layer_depth += 1
             layer_choice[-1].name = 'conv'
-            if hyper_params['flatten']:
+            if hyper_params['flatten'] and input_layer == None:
                 layer_choice.append(Flatten()(last_layer))
                 layer_choice[-1].name = 'dense'
 
@@ -169,15 +173,8 @@ class ModelGenerator:
         # create the initial layer to go off of
         params['last_layer_shape'] = layers[0].shape[1:]
         hyper_params = self.config_layer(init_layer, params)
-        if init_layer in self.dense_layers:
-            layers.append(init_layer(hyper_params['size'], 
-                                     activation=hyper_params['activation'],
-                                     use_bias=hyper_params['use_bias'])(layers[-1]))
-            layers[-1].name = "dense"
-        else:
-            layers.append(init_layer(hyper_params['out_filters'],
-                                     hyper_params['kernel'])(layers[-1]))
-            layers[-1].name = "conv"
+        init_layer.name = "dense" if init_layer in self.dense_layers else "conv"
+        layers.extend(self.next_layer(init_layer, params, input_layer=layers[0]))
         
         while layer_units < total_layers:
             # disables dropout on last layer
@@ -208,7 +205,7 @@ class ModelGenerator:
         blacklist = []
         
         self.q_on = random.random() < q_chance
-        for layer in self.start_layers + self.conv_layers + self.dense_layers:
+        for layer in set(self.start_layers + self.conv_layers + self.dense_layers):
             is_qkeras = layer.__module__[:6] == 'qkeras'
 
             if self.q_on ^ is_qkeras:
