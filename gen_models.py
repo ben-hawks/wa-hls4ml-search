@@ -1,6 +1,7 @@
-# only supports basic layers for now
-from qkeras import QDense, QConv2D, QAveragePooling2D, QActivation
-from keras.layers import Dense, Conv2D, Activation, BatchNormalization, Flatten, Layer, Dropout, Input
+# layers explicitly implemented by name to emphasize larger use in randomization logic
+from qkeras import QDense, QConv2D, QAveragePooling2D, QActivation, QDepthwiseConv2D, QSeparableConv2D, QMobileNetSeparableConv2D
+from keras.layers import Dense, Conv2D, Flatten, Activation, Layer, Input
+import keras.layers
 from keras.models import Model
 
 import random
@@ -11,22 +12,16 @@ clip_base_2 = lambda x: 2**round(np.log2(x))
 
 class ModelGenerator:
     # TODO: Weighting for even dist
-    # TODO: quantized bits
-    # TODO: support regular layers
-    # TODO: add extra q layers
-    # TODO: add scheduler?
+    # TODO: add extra q layers, quantized bits
+    # TODO: Fix first layer never generating config
+ 
+    dense_layers = [Dense, QDense]
+    conv_layers = [Conv2D, QConv2D, QSeparableConv2D]
 
-    dense_next_layers_q = [QDense]
-    dense_next_layers_nq = [Dense]
-
-    conv_next_layers_q = [QConv2D]
-    conv_next_layers_nq = [Conv2D]
-
-    start_layers = [QDense, QConv2D]
+    start_layers = [Conv2D, QConv2D, QDense, Dense, QSeparableConv2D]
     layer_depth = 0
 
-    # whether in QKeras or regular
-    q_on = True
+    q_on = None         # later gets defined but here as a placeholder
 
     activations = [None, "relu", "tanh", "sigmoid", "softmax"]
 
@@ -43,7 +38,7 @@ class ModelGenerator:
         bounds['bias_rate'] = 0.5 if 'bias_rate' not in bounds else bounds['bias_rate']
         use_bias = random.random() < bounds['bias_rate']
         
-        if layer_type in self.dense_next_layers_q:
+        if layer_type in self.dense_layers:
             # provides defaults if not given by call
             bounds['activation_rate'] = 0.5 if 'activation_rate' not in bounds else bounds['activation_rate']
             bounds['dropout_chance'] = .5 if 'dropout_chance' not in bounds else bounds['dropout_chance']
@@ -59,34 +54,34 @@ class ModelGenerator:
             out_filters = clip_base_2(random.randint(3, 256))
             bounds['flatten_chance'] = .5 if 'flatten_chance' not in bounds else bounds['flatten_chance']
             bounds['pooling'] = .5 if 'pooling' not in bounds else bounds['pooling']
+            bounds['padding'] = .5 if 'padding' not in bounds else bounds['padding']
 
             flatten = random.random() < bounds['flatten_chance']
             pooling = random.random() < bounds['pooling']
-
-            # TODO: Make  extra params like stride, padding, kernel_size, etc
-            kernel_size = random.randint(1, 8)
+            padding = random.choice(["same", "valid"])
+            kernel_size = random.randint(1, min(bounds['last_layer_shape'][0], bounds['last_layer_shape'][1]))
+            stride = random.randint(1, 3)
 
             hyper_params = {'out_filters': out_filters, 'kernel': (kernel_size, kernel_size), 
                             'flatten': flatten, 'activation': activation, 'use_bias': use_bias,
-                            'pooling': pooling}
+                            'pooling': pooling, 'padding': padding, 'stride': (stride, stride)}
         
         return hyper_params
 
-    def next_layer(self, last_layer: Layer, dense_params: dict, conv_params: dict) -> Layer:
+    def next_layer(self, last_layer: Layer, params: dict, input_layer: Layer = None) -> Layer:
         """
         Takes previous layer and configuration displays and returns back layer
         
         arguments:
         last_layer -- previous keras/qkeras layer
-        dense_params -- dictionary with dense specifications
-        conv_params -- dictionary with conv specifications
+        params -- dictionary with specifications
         """
 
         if 'dense' in last_layer.name:
             # chooses a random layer and generates config for it. Treats layer + subsequent blocks as a unit
-            # TODO: make q vs nq choice
-            layer_type = random.choice(self.dense_next_layers_q)
-            hyper_params = self.config_layer(layer_type, dense_params)
+            layer_type = random.choice(self.dense_layers)
+
+            hyper_params = self.config_layer(layer_type, params)
 
             layer_choice = [layer_type(hyper_params['size'], 
                 use_bias=hyper_params['use_bias'])(last_layer)]
@@ -97,7 +92,7 @@ class ModelGenerator:
                                                     name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
             else:
                 if hyper_params['dropout']:
-                    layer_choice.append(Dropout(hyper_params['dropout_rate'])(layer_choice[-1]))
+                    layer_choice.append(keras.layers.Dropout(hyper_params['dropout_rate'])(layer_choice[-1]))
 
                 if hyper_params['activation']:
                     layer_choice.append(Activation(activation=hyper_params['activation'], 
@@ -106,12 +101,12 @@ class ModelGenerator:
             self.layer_depth += 1
             layer_choice[-1].name = 'dense'
         elif 'conv' in last_layer.name:
-            # TODO: make q vs nq choice
-            layer_type = random.choice(self.conv_next_layers_q)
-            hyper_params = self.config_layer(layer_type, conv_params)
+            layer_type = random.choice(self.conv_layers)
+            params['last_layer_shape'] = last_layer.shape[1:]
+            hyper_params = self.config_layer(layer_type, params)
 
-            layer_choice = [layer_type(hyper_params['out_filters'], hyper_params['kernel'],
-                                    use_bias=hyper_params['use_bias'])(last_layer)]
+            layer_choice = [layer_type(hyper_params['out_filters'], hyper_params['kernel'], strides=hyper_params['stride'],
+                                    use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
 
             if self.q_on:
                 if hyper_params['activation']:
@@ -121,9 +116,13 @@ class ModelGenerator:
                 if hyper_params['pooling']:
                     layer_choice.append(QAveragePooling2D()(layer_choice[-1]))
             else:
-                pass
-                # TODO: add all forms of pooling
-                # TODO: add activations
+                if hyper_params['activation']:
+                    layer_choice.append(Activation(activation=hyper_params['activation'], 
+                        name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+
+                if hyper_params['pooling']:
+                    pooling = random.choice([keras.layers.MaxPooling2D, keras.layers.AveragePooling2D])
+                    layer_choice.append(pooling((2, 2))(layer_choice[-1]))
             
             self.layer_depth += 1
             layer_choice[-1].name = 'conv'
@@ -134,7 +133,7 @@ class ModelGenerator:
         return layer_choice
 
     def gen_network(self, total_layers: int = 3, 
-                    add_params: dict = {}) -> Model:
+                    add_params: dict = {}, q_chance: float = .5) -> Model:
         """
         Generates interconnected network based on defaults or extra params, returns Model
 
@@ -143,16 +142,16 @@ class ModelGenerator:
         add_params -- parameters to specify besides defaults for model generation (default: {})
         """
 
-        params = {k: add_params[k] for k in add_params}
+        add_params = {k: add_params[k] for k in add_params}
 
-        defaults = {'dense_lb': 32, 'dense_ub': 1024, 
+        params = {'dense_lb': 32, 'dense_ub': 1024, 
                             'conv_init_size_lb': 32, 'conv_init_size_ub': 128,
                             'conv_filters_lb': 3, 'conv_filters_ub': 64}
-        for key in defaults:
-            if key not in params:
-                params[key] = defaults[key]
+        params.update(add_params)
 
-        # select an init layer to determine input size
+        # wipe either all the qkeras or keras layers depending on what mode we're in
+        self.filter_q(q_chance)
+
         init_layer = random.choice(self.start_layers)
         layer_units = 0
 
@@ -168,8 +167,9 @@ class ModelGenerator:
         layers = [Input(shape=input_shape)]
 
         # create the initial layer to go off of
+        params['last_layer_shape'] = layers[0].shape[1:]
         hyper_params = self.config_layer(init_layer, params)
-        if init_layer == QDense:
+        if init_layer in self.dense_layers:
             layers.append(init_layer(hyper_params['size'], 
                                      activation=hyper_params['activation'],
                                      use_bias=hyper_params['use_bias'])(layers[-1]))
@@ -183,7 +183,7 @@ class ModelGenerator:
             # disables dropout on last layer
             if layer_units == total_layers - 1:
                 params['dropout_rate'] = 0
-            layers.extend(self.next_layer(layers[-1], params, params))
+            layers.extend(self.next_layer(layers[-1], params))
             layer_units += 1
 
         # compiles the model
@@ -191,10 +191,36 @@ class ModelGenerator:
         model.build(input_shape)
         
         return model
+    
+    def reset_layers(self) -> None:
+        """
+        Used to return class to initial state. Useful if generating multiple networks
+        """
+        self.dense_layers = [Dense, QDense]
+        self.conv_layers = [Conv2D, QConv2D]
+
+        self.start_layers = [QDense, QConv2D, Dense, Conv2D]
+
+    def filter_q(self, q_chance: float) -> None:
+        """
+        Filter self.<layers> based on whether q_on is set or not
+        """
+        blacklist = []
         
+        self.q_on = random.random() < q_chance
+        for layer in self.start_layers + self.conv_layers + self.dense_layers:
+            is_qkeras = layer.__module__[:6] == 'qkeras'
+
+            if self.q_on ^ is_qkeras:
+                blacklist.append(layer)
+        
+        self.start_layers = [layer for layer in self.start_layers if layer not in blacklist]
+        self.dense_layers = [layer for layer in self.dense_layers if layer not in blacklist]
+        self.conv_layers = [layer for layer in self.conv_layers if layer not in blacklist]
 
 if __name__ == '__main__':
     mg = ModelGenerator()
-    model = mg.gen_network(add_params={'dense_ub': 64})
+    model = mg.gen_network(add_params={'dense_ub': 64, 'conv_filters_ub': 16})
+    mg.reset_layers()
 
     model.summary()
