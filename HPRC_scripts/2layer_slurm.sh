@@ -2,9 +2,7 @@
 #SBATCH --job-name=fermi_hls4ml
 #SBATCH --time=05:00:00
 #SBATCH --mem=480G
-#SBATCH --ntasks=48                # Total tasks (each task runs 1 Python job)
-#SBATCH --cpus-per-task=4          # Each Python process gets 4 CPUs
-#SBATCH --nodes=2
+#SBATCH --cpus-per-task=4       
 #SBATCH --output=out
 #SBATCH --error=error
 #SBATCH --partition=staff 
