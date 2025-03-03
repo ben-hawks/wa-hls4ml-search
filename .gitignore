@@ -159,3 +159,6 @@ cython_debug/
 3_DataFed_Tutorial.ipynb
 datapathraw_data.txt
 /project/
+
+#HLS project on HPRC
+hlsproj
