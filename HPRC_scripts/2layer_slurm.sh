@@ -2,7 +2,7 @@
 #SBATCH --job-name=fermi_hls4ml
 #SBATCH --time=05:00:00
 #SBATCH --mem=480G
-#SBATCH --cpus-per-task=4       
+#SBATCH --cpus-per-task=1       
 #SBATCH --output=out
 #SBATCH --error=error
 #SBATCH --partition=staff 
