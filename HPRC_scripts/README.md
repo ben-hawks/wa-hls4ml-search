@@ -18,11 +18,10 @@ You can use the runner.sh script like so:
 ```
 bash runner.sh <start_config_num> <end_config_num>
 ```
-this will submit a slurm batch job for all configs between [start_config_num, end_config_num). Each config will get 4 cores.  
+this will submit a slurm batch job for all configs between [start_config_num, end_config_num). Each config will get 1 core.  
 ## Example
 ```
 bash runner.sh 1 49
 ```
-This will run configs 1 - 48 (inclusive) in parallel. Each will use 4 cores, so in total the script will request 4 * 48 = 192 cores.  
-Since there are 96 cores / node on ACES, this will request 2 nodes.  
+This will run configs 1 - 48 (inclusive) in parallel. Each will use 1 core, so in total the script will request 48 cores.  
 Note that this is currently hardcoded for 2layer configs only.
