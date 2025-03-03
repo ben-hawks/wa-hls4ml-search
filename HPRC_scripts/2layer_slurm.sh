@@ -2,9 +2,9 @@
 #SBATCH --job-name=fermi_hls4ml
 #SBATCH --time=05:00:00
 #SBATCH --mem=480G
-#SBATCH --ntasks=24                # Total tasks (each task runs 1 Python job)
+#SBATCH --ntasks=48                # Total tasks (each task runs 1 Python job)
 #SBATCH --cpus-per-task=4          # Each Python process gets 4 CPUs
-#SBATCH --nodes=1
+#SBATCH --nodes=2
 #SBATCH --output=out
 #SBATCH --error=error
 #SBATCH --partition=staff 
@@ -54,7 +54,7 @@ fi
 echo "Starting the iter_manager.py job..."
 
 for (( CONFIG=START_CONFIG; CONFIG<END_CONFIG; CONFIG++ )); do
-    srun -n4 python "${REPO_DIR}/iter_manager.py" \
+    srun -N 1 -n 1 -c 4 --overlap python "${REPO_DIR}/iter_manager.py" \
         -f "${REPO_DIR}/pregen_2layer_models/filelist_${CONFIG}.csv" \
         -o "${REPO_DIR}/output/2layer_run_vsynth" \
         --hls4ml_strat resource \
