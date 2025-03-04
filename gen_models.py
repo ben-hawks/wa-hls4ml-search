@@ -1,6 +1,6 @@
 # layers explicitly implemented by name to emphasize larger use in randomization logic
-from qkeras import QDense, QConv2D, QConv1D, QAveragePooling2D, QActivation, quantized_bits
-from keras.layers import Dense, Conv2D, Flatten, Activation, Conv1D, Layer, Input
+from qkeras import QDense, QConv2D, QConv1D, QAveragePooling2D, QActivation, quantized_bits, QDepthwiseConv2D, QSeparableConv2D, QSeparableConv1D, QLSTM
+from keras.layers import Dense, Conv2D, Flatten, Activation, Conv1D, LSTM, Layer, Input
 import keras.layers
 from keras.models import Model
 
@@ -11,15 +11,11 @@ import numpy as np
 clip_base_2 = lambda x: 2**round(np.log2(x))
 
 class ModelGenerator:
-    # TODO: add RNN, exotic qKeras
-    # TODO: function callbacks
-    # TODO: refactor (I got a little sloppy :( )
-    # TODO (not urgent): add verbosity log file (helps with metadata for dataset generation)
-    # TODO (not urgent): Make deployable from command line (allow load in for json)
+    # TODO: add RNN
  
     dense_layers = [Dense, QDense]
-    conv_layers = [Conv2D, QConv2D]
-    time_layers = [Conv1D, QConv1D] # RNN too
+    conv_layers = [Conv2D, QConv2D, QSeparableConv2D, QDepthwiseConv2D]
+    time_layers = [Conv1D, QConv1D, QSeparableConv1D]
 
     start_layers = [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense]
     layer_depth = 0             # counter to avoid reuse of layer names (throwaway values)
@@ -61,7 +57,7 @@ class ModelGenerator:
             pooling = random.random() < self.params['pooling_chance']
             padding = random.choices(["same", "valid"], weights=self.params['probs']['padding'], k=1)[0]
 
-            # have to guarantee the range is > (1, 1)
+            # TODO: known issue with convs where crushes too low (sometimes)
             kernel_size = random.randint(self.params['conv_kernel_lb'], self.params['conv_kernel_ub'])
             stride = random.randint(self.params['conv_stride_lb'], self.params['conv_stride_ub'])
 
@@ -125,9 +121,17 @@ class ModelGenerator:
             last_layer = last_layer if input_layer == None else input_layer
 
             if self.q_on:
-                layer_choice = [layer_type(hyper_params['out_filters'], hyper_params['kernel'], strides=hyper_params['stride'],
-                                        kernel_quantizer=quantized_bits(self.params['weight_bit_width'], self.params['weight_int_width']),
-                                        use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                # each type of qConv2d flavor has different parameters
+                if layer_type == QConv2D:
+                    layer_choice = [layer_type(hyper_params['out_filters'], hyper_params['kernel'], strides=hyper_params['stride'],
+                                            kernel_quantizer=quantized_bits(self.params['weight_bit_width'], self.params['weight_int_width']),
+                                            use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                elif layer_type == QSeparableConv2D:
+                    layer_choice = [layer_type(hyper_params['out_filters'], hyper_params['kernel'], strides=hyper_params['stride'],
+                                            use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                elif layer_type == QDepthwiseConv2D:
+                    layer_choice = [layer_type(hyper_params['kernel'], strides=hyper_params['stride'],
+                                            use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
 
                 if "no_activation" not in hyper_params['activation']:
                     layer_choice.append(QActivation(activation=hyper_params['activation'], 
@@ -161,16 +165,25 @@ class ModelGenerator:
             last_layer = last_layer if input_layer == None else input_layer
 
             if self.q_on:
-                layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'], strides=hyper_params['stride'],
-                                        kernel_quantizer=quantized_bits(self.params['weight_bit_width'], self.params['weight_int_width']),
-                                        use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                if layer_type == QConv1D:
+                    layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'], strides=hyper_params['stride'],
+                                            kernel_quantizer=quantized_bits(self.params['weight_bit_width'], self.params['weight_int_width']),
+                                            use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                elif layer_type == QSeparableConv1D:
+                    layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'], strides=hyper_params['stride'],
+                                            use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                elif layer_type == QLSTM:
+                    raise NotImplemented
 
                 if "no_activation" not in hyper_params['activation']:
                     layer_choice.append(QActivation(activation=hyper_params['activation'], 
                         name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
             else:
-                layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'], strides=hyper_params['stride'],
-                                        use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                if layer_type == LSTM:
+                    raise NotImplemented
+                elif layer_type == Conv1D:
+                    layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'], strides=hyper_params['stride'],
+                                            use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
                 
                 if "no_activation" not in hyper_params['activation']:
                     layer_choice.append(Activation(activation=hyper_params['activation'], 
@@ -186,7 +199,7 @@ class ModelGenerator:
         return layer_choice
 
     def gen_network(self, total_layers: int = 3, 
-                    add_params: dict = {}) -> Model:
+                    add_params: dict = {}, callback = None) -> Model:
         """
         Generates interconnected network based on defaults or extra params, returns Model
 
@@ -256,6 +269,13 @@ class ModelGenerator:
         
         layers.extend(self.next_layer(init_layer, input_layer=layers[0]))
         while layer_units < total_layers:
+
+            # provides a callback function. Will return if any value is instructed to return from the call
+            if callback:
+                callback_output = callback(self, layers)
+                if callback_output:
+                    return callback_output
+
             # disables dropout on last layer
             if layer_units == total_layers - 1:
                 self.params['dropout_rate'] = 0
@@ -273,10 +293,10 @@ class ModelGenerator:
         Used to return class to initial state. Useful if generating multiple networks
         """
         self.dense_layers = [Dense, QDense]
-        self.conv_layers = [Conv2D, QConv2D]
-        self.time_layers = [Conv1D, QConv1D] # RNN too
+        self.conv_layers = [QConv2D, Conv2D, QSeparableConv2D, QDepthwiseConv2D]
+        self.time_layers = [Conv1D, QConv1D]
 
-        self.start_layers = [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense]
+        self.start_layers = [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense, QSeparableConv2D, QDepthwiseConv2D]
         self.activations = ["no_activation", "relu", "tanh", "sigmoid", "softmax"]
 
         self.layer_depth = 0
@@ -316,7 +336,7 @@ class ModelGenerator:
 
 if __name__ == '__main__':
     mg = ModelGenerator()
-    for _ in range(10):
+    for _ in range(20):
         model = mg.gen_network(add_params={'dense_lb': 1, 'dense_ub': 64, 'conv_filters_ub': 16, 'q_chance': 1})
         mg.reset_layers()
 
