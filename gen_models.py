@@ -1,6 +1,6 @@
 # layers explicitly implemented by name to emphasize larger use in randomization logic
-from qkeras import QDense, QConv2D, QAveragePooling2D, QActivation, QDepthwiseConv2D, QSeparableConv2D, quantized_bits
-from keras.layers import Dense, Conv2D, Flatten, Activation, Layer, Input
+from qkeras import QDense, QConv2D, QConv1D, QAveragePooling2D, QActivation, quantized_bits
+from keras.layers import Dense, Conv2D, Flatten, Activation, Conv1D, Layer, Input
 import keras.layers
 from keras.models import Model
 
@@ -11,15 +11,17 @@ import numpy as np
 clip_base_2 = lambda x: 2**round(np.log2(x))
 
 class ModelGenerator:
-    # TODO: add conv1d, RNN, exotic qKeras
+    # TODO: add RNN, exotic qKeras
     # TODO: function callbacks
+    # TODO: refactor (I got a little sloppy :( )
     # TODO (not urgent): add verbosity log file (helps with metadata for dataset generation)
     # TODO (not urgent): Make deployable from command line (allow load in for json)
  
     dense_layers = [Dense, QDense]
     conv_layers = [Conv2D, QConv2D]
+    time_layers = [Conv1D, QConv1D] # RNN too
 
-    start_layers = [Conv2D, QConv2D, QDense, Dense]
+    start_layers = [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense]
     layer_depth = 0             # counter to avoid reuse of layer names (throwaway values)
 
     q_on = None                 # later gets defined but here as a placeholder
@@ -50,24 +52,34 @@ class ModelGenerator:
             hyper_params = {'size': layer_size, 'activation': activation, 'use_bias': use_bias,
                             'dropout': dropout, 'dropout_rate': self.params['dropout_rate']
                             }
-        else:
+        elif layer_type in self.conv_layers:
             out_filters = clip_base_2(random.randint(3, 256))
             self.params['flatten_chance'] = self.params['flatten_chance']
             self.params['pooling_chance'] = self.params['pooling_chance']
-            self.params['padding_chance'] = self.params['padding_chance']
 
             flatten = random.random() < self.params['flatten_chance']
             pooling = random.random() < self.params['pooling_chance']
             padding = random.choices(["same", "valid"], weights=self.params['probs']['padding'], k=1)[0]
 
             # have to guarantee the range is > (1, 1)
-            min_dim = min(self.params['last_layer_shape'][0], self.params['last_layer_shape'][1])
-            kernel_size = random.randint(1, max(2, min_dim))
+            kernel_size = random.randint(self.params['conv_kernel_lb'], self.params['conv_kernel_ub'])
             stride = random.randint(self.params['conv_stride_lb'], self.params['conv_stride_ub'])
 
             hyper_params = {'out_filters': out_filters, 'kernel': (kernel_size, kernel_size), 
                             'flatten': flatten, 'activation': activation, 'use_bias': use_bias,
                             'pooling': pooling, 'padding': padding, 'stride': (stride, stride)}
+        elif layer_type in self.time_layers:
+            out_filters = clip_base_2(random.randint(3, 256))
+            kernel_size = random.randint(self.params['conv_kernel_lb'], self.params['conv_kernel_ub'])
+
+            flatten = random.random() < self.params['flatten_chance']
+
+            stride = random.randint(self.params['conv_stride_lb'], self.params['conv_stride_ub'])
+            padding = random.choices(["same", "valid"], weights=self.params['probs']['padding'], k=1)[0]
+
+            hyper_params = {'out_filters': out_filters, 'kernel': kernel_size, 
+                            'flatten': flatten, 'activation': activation, 'use_bias': use_bias,
+                            'padding': padding, 'stride': stride}
         
         return hyper_params
 
@@ -77,7 +89,6 @@ class ModelGenerator:
         
         arguments:
         last_layer -- previous keras/qkeras layer
-        params -- dictionary with specifications
         """
 
         if 'dense' in last_layer.name:
@@ -87,7 +98,6 @@ class ModelGenerator:
             hyper_params = self.config_layer(layer_type)
 
             last_layer = last_layer if input_layer == None else input_layer
-            
 
             if self.q_on:
                 layer_choice = [layer_type(hyper_params['size'], 
@@ -106,7 +116,6 @@ class ModelGenerator:
                     layer_choice.append(Activation(activation=hyper_params['activation'], 
                                                     name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
 
-            self.layer_depth += 1
             layer_choice[-1].name = 'dense'
         elif 'conv' in last_layer.name:
             layer_type = random.choices(self.conv_layers, weights=self.params['probs']['conv_layers'], k=1)[0] if input_layer == None else last_layer
@@ -139,12 +148,41 @@ class ModelGenerator:
                                             weights=self.params['probs']['pooling'], k=1)[0]
                     layer_choice.append(pooling((2, 2))(layer_choice[-1]))
             
-            self.layer_depth += 1
+            
             layer_choice[-1].name = 'conv'
             if hyper_params['flatten'] and input_layer == None:
                 layer_choice.append(Flatten()(last_layer))
                 layer_choice[-1].name = 'dense'
+        elif 'time' in last_layer.name:
+            layer_type = random.choices(self.time_layers, weights=self.params['probs']['time_layers'], k=1)[0] if input_layer == None else last_layer
+            self.params['last_layer_shape'] = last_layer.shape[1:]  if input_layer == None else self.params['last_layer_shape']
+            hyper_params = self.config_layer(layer_type)
 
+            last_layer = last_layer if input_layer == None else input_layer
+
+            if self.q_on:
+                layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'], strides=hyper_params['stride'],
+                                        kernel_quantizer=quantized_bits(self.params['weight_bit_width'], self.params['weight_int_width']),
+                                        use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+
+                if "no_activation" not in hyper_params['activation']:
+                    layer_choice.append(QActivation(activation=hyper_params['activation'], 
+                        name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+            else:
+                layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'], strides=hyper_params['stride'],
+                                        use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
+                
+                if "no_activation" not in hyper_params['activation']:
+                    layer_choice.append(Activation(activation=hyper_params['activation'], 
+                        name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+                    
+            
+            layer_choice[-1].name = 'time'
+            if hyper_params['flatten'] and input_layer == None:
+                layer_choice.append(Flatten()(last_layer))
+                layer_choice[-1].name = 'dense'
+
+        self.layer_depth += 1
         return layer_choice
 
     def gen_network(self, total_layers: int = 3, 
@@ -164,12 +202,14 @@ class ModelGenerator:
                     'conv_init_size_lb': 32, 'conv_init_size_ub': 128,
                     'conv_filters_lb': 3, 'conv_filters_ub': 64, 
                     'conv_stride_lb': 1, 'conv_stride_ub': 3,
+                    'conv_kernel_lb': 1, 'conv_kernel_ub': 6,
+                    'time_lb': 30, 'time_ub': 150,
                     'q_chance': .5,
                     'activ_bit_width': 8, 'activ_int_width': 4,
                     'weight_bit_width': 6, 'weight_int_width': 3,
                     'probs': {
                             'activations': [],
-                            'dense_layers': [], 'conv_layers': [], 'start_layers': [],
+                            'dense_layers': [], 'conv_layers': [], 'start_layers': [], 'time_layers': [],
                             'padding': [0.5, 0.5],   # border, off
                             'pooling': [0.5, 0.5]    # max, avg
                             },
@@ -178,7 +218,6 @@ class ModelGenerator:
                     'dropout_rate': .4,                           # how much to dropout if dropout on
                     'flatten_chance': .5,
                     'pooling_chance': .5,
-                    'padding_chance': .5,
                     'bias_rate': .5
                 }
         self.params.update(add_params)
@@ -190,19 +229,30 @@ class ModelGenerator:
         layer_units = 0
 
         # gen size based off start layer (right now is dense so can manipulate first selection)
-        if init_layer == QDense:
+        if init_layer in self.dense_layers:
             input_shape = (clip_base_2(random.randint(self.params['dense_lb'], self.params['dense_ub'])),)
-        else:
+        elif init_layer in self.conv_layers:
             y_dim = random.randint(self.params['conv_init_size_lb'], self.params['conv_init_size_ub']) 
             x_dim = random.randint(self.params['conv_init_size_lb'], self.params['conv_init_size_ub'])
             num_filters = clip_base_2(random.randint(self.params['conv_filters_lb'], self.params['conv_filters_ub']))
 
             input_shape = (y_dim, x_dim, num_filters)
+        elif init_layer in self.time_layers:
+            input_shape = (clip_base_2(random.randint(self.params['time_lb'], self.params['time_ub'])), 
+                                random.randint(self.params['dense_lb'], self.params['dense_ub']))
         layers = [Input(shape=input_shape)]
 
         # create the initial layer to go off of
         self.params['last_layer_shape'] = layers[0].shape[1:]
-        init_layer.name = "dense" if init_layer in self.dense_layers else "conv"
+
+        if init_layer in self.dense_layers:
+            init_layer.name = "dense"
+        elif init_layer in self.conv_layers:
+            init_layer.name = "conv"
+        elif init_layer in self.time_layers:
+            init_layer.name = "time"
+        else:
+            raise Exception("Layer not of a valid type")
         
         layers.extend(self.next_layer(init_layer, input_layer=layers[0]))
         while layer_units < total_layers:
@@ -224,8 +274,13 @@ class ModelGenerator:
         """
         self.dense_layers = [Dense, QDense]
         self.conv_layers = [Conv2D, QConv2D]
+        self.time_layers = [Conv1D, QConv1D] # RNN too
 
-        self.start_layers = [QDense, QConv2D, Dense, Conv2D]
+        self.start_layers = [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense]
+        self.activations = ["no_activation", "relu", "tanh", "sigmoid", "softmax"]
+
+        self.layer_depth = 0
+
 
     def filter_q(self, q_chance: float, params: dict) -> None:
         """
@@ -246,21 +301,23 @@ class ModelGenerator:
         self.start_layers = [layer for layer in self.start_layers if layer not in blacklist]
         self.dense_layers = [layer for layer in self.dense_layers if layer not in blacklist]
         self.conv_layers = [layer for layer in self.conv_layers if layer not in blacklist]
+        self.time_layers = [layer for layer in self.time_layers if layer not in blacklist]
 
         if self.q_on:
-            self.activations.remove('softmax')
+            if 'softmax' in self.activations:
+                self.activations.remove('softmax')      # doesnt have a qkeras equivalent
             self.activations = [f'quantized_{activ_func}({params["activ_bit_width"]},{params["activ_int_width"]})' for activ_func in self.activations]
 
         # defaults if the layer was not set. Setting these is intentionally very delicate
-        pairs = {'activations': self.activations, 'start_layers': self.start_layers, 'dense_layers': self.dense_layers, 'conv_layers': self.conv_layers}
+        pairs = {'activations': self.activations, 'start_layers': self.start_layers, 'dense_layers': self.dense_layers, 'conv_layers': self.conv_layers, 'time_layers': self.time_layers}
         for param_type in pairs:
             if not params['probs'][param_type]:
                 params['probs'][param_type] = [1 / len(pairs[param_type]) for _ in pairs[param_type]]
 
 if __name__ == '__main__':
     mg = ModelGenerator()
-    for _ in range(1):
-        model = mg.gen_network(add_params={'dense_ub': 64, 'conv_filters_ub': 16, 'q_chance': 1})
+    for _ in range(10):
+        model = mg.gen_network(add_params={'dense_lb': 1, 'dense_ub': 64, 'conv_filters_ub': 16, 'q_chance': 1})
         mg.reset_layers()
 
         model.summary()
