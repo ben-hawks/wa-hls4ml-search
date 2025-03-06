@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import uuid
@@ -9,16 +10,28 @@ from qkeras.utils import _add_supported_quantized_objects
 import hls4ml
 from rule4ml.parsers.network_parser import config_from_keras_model
 from gen_dense_models_v2 import generate_model_from_config
+
+def get_vivado_version():
+    xilinx_vivado_path = os.getenv('XILINX_VIVADO', '')
+    match = re.search(r'(\d{4}\.\d(?:\.\d)?)', xilinx_vivado_path)
+    if match:
+        return match.group(1)
+    else:
+        return None
+
 try:
     os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
     os.environ['PATH'] = os.environ['XILINX_VITIS'] + '/bin:' + os.environ['PATH']
     hls4ml_backend = 'Vitis'
+    tool_version = get_vivado_version()
 except KeyError:
     try:
         os.environ['PATH'] = os.environ['XILINX_VIVADO'] + '/bin:' + os.environ['PATH']
         hls4ml_backend = 'Vivado'
+        tool_version = get_vivado_version()
     except KeyError:
         hls4ml_backend = 'Vivado'
+        tool_version = None
 
 class HiddenPrints:
     def __enter__(self):
@@ -28,6 +41,7 @@ class HiddenPrints:
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout.close()
         sys.stdout = self._original_stdout
+
 
 
 def process_json_files(input_dir, output_file, model_dir, filelist=None):
@@ -89,8 +103,8 @@ def process_json_files(input_dir, output_file, model_dir, filelist=None):
                     'resource_report': resource_report,
                     'latency_report': latency_report,
                     'target_part': "xcu250-figd2104-2L-e",
-                    'vivado_version':"2020.1",
-                    'hls4ml_version': "0.8.1",
+                    'vivado_version':tool_version if tool_version is not None else "2020.1",
+                    'hls4ml_version': hls4ml.__version__,
                 }
 
                 processed_data.append(processed_entry)
@@ -165,8 +179,8 @@ def process_json_files_filelist(input_dir, output_file, filelist_path):
                     'resource_report': resource_report,
                     'latency_report': latency_report,
                     'target_part': "xcu250-figd2104-2L-e",
-                    'vivado_version':"2020.1",
-                    'hls4ml_version': "0.8.1",
+                    'vivado_version':tool_version if tool_version is not None else "2020.1",
+                    'hls4ml_version': hls4ml.__version__,
                 }
 
                 processed_data.append(processed_entry)
@@ -178,7 +192,7 @@ def process_json_files_filelist(input_dir, output_file, filelist_path):
 
 
 
-def process_json_entry(model, hls_config, filename, part="xcu250-figd2104-2L-e", vivado_version="2020.1", hls4ml_version="0.8.1"):
+def process_json_entry(model, hls_config, filename, part="xcu250-figd2104-2L-e"):
     processed_data = None
     model_uuid = None
     if filename.endswith("_report.json"):
@@ -218,8 +232,8 @@ def process_json_entry(model, hls_config, filename, part="xcu250-figd2104-2L-e",
                 'resource_report': resource_report,
                 'latency_report': latency_report,
                 'target_part': part,
-                'vivado_version':vivado_version,
-                'hls4ml_version': hls4ml_version,
+                'vivado_version':tool_version if tool_version is not None else "2020.1",
+                'hls4ml_version': hls4ml.__version__,
             }
 
             processed_data = processed_entry

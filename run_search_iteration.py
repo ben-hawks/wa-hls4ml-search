@@ -102,7 +102,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     with open(json_name, "w") as outfile:
         json.dump(report_json, outfile)
 
-    processed_json, model_uuid = process_json_entry(model, config, json_name)
+    processed_json, model_uuid = process_json_entry(model, config, json_name, part=part)
     with open(processed_json_name, "w") as outfile:
         json.dump(processed_json, outfile)
 

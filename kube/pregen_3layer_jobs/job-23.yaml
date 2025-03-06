@@ -22,7 +22,7 @@ spec:
               cat /home/xilinx/.bashrc &&
               source /venv/bin/activate && 
               echo "activated venv" &&
-              source /tools/Xilinx/Vivado/2020.1/settings64.sh &&
+              source /tools/Xilinx/Vitis/2023.2/settings64.sh &&
               echo "Setup Vivado, running job..." &&
               python /opt/repo/wa-hls4ml-search/iter_manager_v2.py
               -f /opt/repo/wa-hls4ml-search/pregen_3layer_models/filelist_23.csv
@@ -43,9 +43,11 @@ spec:
           limits:
             memory: 16Gi
             cpu: "3"
+            ephemeral-storage: "100Gi"
           requests:
             memory: 16Gi
             cpu: "3"
+            ephemeral-storage: "100Gi"
       initContainers:
       - name: init-clone-repo
         image: alpine/git
@@ -85,10 +87,6 @@ spec:
                     operator: NotIn
                     values:
                       - "true"
-                  - key: topology.kubernetes.io/zone
-                    operator: In
-                    values:
-                      - ucsd-nrp
       volumes:
       - name: xilinx-tools
         persistentVolumeClaim:
