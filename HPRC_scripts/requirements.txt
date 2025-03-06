@@ -1,0 +1,6 @@
+tensorflow==2.11
+qkeras
+hls4ml 
+pyyaml 
+rule4ml
+pyparsing
