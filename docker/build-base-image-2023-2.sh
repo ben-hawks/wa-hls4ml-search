@@ -9,7 +9,7 @@ git submodule update --init --recursive
 
 ls
 
-cd ./xilinx-docker/recipes/user-images/v2023.2/ubuntu-20.04.4-user
+cd docker/xilinx-docker/recipes/user-images/v2023.2/ubuntu-20.04.4-user
 
 # build the base image
 pushd ../../../base-images/ubuntu-20.04.4/
@@ -21,4 +21,4 @@ popd
 
 docker builder prune -f
 
-rm -rf ./xilinx-docker/recipes/base-images/ubuntu-20.04.4/depends
+rm -rf docker/xilinx-docker/recipes/base-images/ubuntu-20.04.4/depends
