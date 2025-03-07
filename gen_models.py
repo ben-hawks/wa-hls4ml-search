@@ -11,18 +11,9 @@ import numpy as np
 clip_base_2 = lambda x: 2**round(np.log2(x))
 
 class ModelGenerator:
-    # TODO: add RNN
- 
-    dense_layers = [Dense, QDense]
-    conv_layers = [Conv2D, QConv2D, QSeparableConv2D, QDepthwiseConv2D]
-    time_layers = [Conv1D, QConv1D, QSeparableConv1D]
 
-    start_layers = [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense]
-    layer_depth = 0             # counter to avoid reuse of layer names (throwaway values)
-
-    q_on = None                 # later gets defined but here as a placeholder
-
-    activations = ["no_activation", "relu", "tanh", "sigmoid", "softmax"]
+    def __init__(self):
+        self.reset_layers()
 
     def config_layer(self, layer_type: Layer) -> dict:
         """
@@ -53,13 +44,19 @@ class ModelGenerator:
             self.params['flatten_chance'] = self.params['flatten_chance']
             self.params['pooling_chance'] = self.params['pooling_chance']
 
-            flatten = random.random() < self.params['flatten_chance']
+            # forces a flatten if we get under the sensitivity bounds 
+            flatten = (random.random() < self.params['flatten_chance']) or \
+                (self.params['last_layer_shape'][0] < self.params['conv_flatten_limit'] or self.params['last_layer_shape'][1] < self.params['conv_flatten_limit'])
             pooling = random.random() < self.params['pooling_chance']
-            padding = random.choices(["same", "valid"], weights=self.params['probs']['padding'], k=1)[0]
+            padding = random.choices(['same', 'valid'], weights=self.params['probs']['padding'], k=1)[0]
 
-            # TODO: known issue with convs where crushes too low (sometimes)
-            kernel_size = random.randint(self.params['conv_kernel_lb'], self.params['conv_kernel_ub'])
+            kernel_size = min(random.randint(self.params['conv_kernel_lb'], self.params['conv_kernel_ub']), *self.params['last_layer_shape'][:-1])
             stride = random.randint(self.params['conv_stride_lb'], self.params['conv_stride_ub'])
+
+            row_dim_pred = (self.params['last_layer_shape'][0] - kernel_size + 2 * int(padding == 'valid')) / stride + 1
+            col_dim_pred = (self.params['last_layer_shape'][1] - kernel_size + 2 * int(padding == 'valid')) / stride + 1
+            if row_dim_pred <= 0 or col_dim_pred <= 0:
+                kernel_size, stride, padding = 1, 1, 'same'
 
             hyper_params = {'out_filters': out_filters, 'kernel': (kernel_size, kernel_size), 
                             'flatten': flatten, 'activation': activation, 'use_bias': use_bias,
@@ -71,7 +68,7 @@ class ModelGenerator:
             flatten = random.random() < self.params['flatten_chance']
 
             stride = random.randint(self.params['conv_stride_lb'], self.params['conv_stride_ub'])
-            padding = random.choices(["same", "valid"], weights=self.params['probs']['padding'], k=1)[0]
+            padding = random.choices(['same', 'valid'], weights=self.params['probs']['padding'], k=1)[0]
 
             hyper_params = {'out_filters': out_filters, 'kernel': kernel_size, 
                             'flatten': flatten, 'activation': activation, 'use_bias': use_bias,
@@ -217,6 +214,7 @@ class ModelGenerator:
                     'conv_stride_lb': 1, 'conv_stride_ub': 3,
                     'conv_kernel_lb': 1, 'conv_kernel_ub': 6,
                     'time_lb': 30, 'time_ub': 150,
+                    'conv_flatten_limit': 8,
                     'q_chance': .5,
                     'activ_bit_width': 8, 'activ_int_width': 4,
                     'weight_bit_width': 6, 'weight_int_width': 3,
@@ -269,7 +267,6 @@ class ModelGenerator:
         
         layers.extend(self.next_layer(init_layer, input_layer=layers[0]))
         while layer_units < total_layers:
-
             # provides a callback function. Will return if any value is instructed to return from the call
             if callback:
                 callback_output = callback(self, layers)
@@ -277,6 +274,8 @@ class ModelGenerator:
                     return callback_output
 
             # disables dropout on last layer
+            if layer_units == total_layers - 2 and layers[-1].name:
+                self.params['flatten_chance'] = 1
             if layer_units == total_layers - 1:
                 self.params['dropout_rate'] = 0
             layers.extend(self.next_layer(layers[-1]))
@@ -285,6 +284,8 @@ class ModelGenerator:
         # compiles the model
         model = Model(inputs=layers[0], outputs=layers[-1])
         model.build(input_shape)
+
+        self.save_network(model)
         
         return model
     
@@ -300,7 +301,6 @@ class ModelGenerator:
         self.activations = ["no_activation", "relu", "tanh", "sigmoid", "softmax"]
 
         self.layer_depth = 0
-
 
     def filter_q(self, q_chance: float, params: dict) -> None:
         """
@@ -334,10 +334,37 @@ class ModelGenerator:
             if not params['probs'][param_type]:
                 params['probs'][param_type] = [1 / len(pairs[param_type]) for _ in pairs[param_type]]
 
+    def save_network(self, model: Model):
+        print(self.q_on)
+        for layer in model.layers:
+            config = layer.get_config()
+            
+            layer_data = {
+                "Layer Name": layer.name,
+                "Layer Type": type(layer).__name__,
+                "Input Shape": config.get("input_shape", "N/A"),
+                # "Output Shape": layer.output_shape,
+                # "Number of Parameters": layer.count_params(),
+                "Stride": config.get("strides", "N/A"),
+                "Kernel Size": config.get("kernel_size", "N/A"),
+                "Filters/Units": config.get("filters", config.get("units", "N/A")),
+                "Activation": config.get("activation", "N/A"),
+                "Padding": config.get("padding", "N/A"),
+                "Dilation Rate": config.get("dilation_rate", "N/A"),
+                "Dropout Rate": config.get("rate", "N/A"),
+                "Batch Norm": "Yes" if "BatchNormalization" in type(layer).__name__ else "No"
+            }
+            print(layer_data)
+
+
+
 if __name__ == '__main__':
     mg = ModelGenerator()
-    for _ in range(20):
-        model = mg.gen_network(add_params={'dense_lb': 1, 'dense_ub': 64, 'conv_filters_ub': 16, 'q_chance': 1})
+    # goal to gen random models from 3-20 
+    for _ in range(1):
+        model = mg.gen_network(add_params={'dense_lb': 1, 'dense_ub': 64, 'conv_filters_ub': 16, 'q_chance': 1}, total_layers=random.randint(3, 7))
         mg.reset_layers()
-
+        
         model.summary()
+
+# TODO: Save models to csv and make it reloadable within current framework
