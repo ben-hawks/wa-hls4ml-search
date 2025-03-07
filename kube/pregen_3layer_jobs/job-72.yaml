@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
       - name: hls4ml-docker
-        image:  ghcr.io/ben-hawks/wa-hls4ml-search:main
+        image:  ghcr.io/ben-hawks/wa-hls4ml-search:v2023.2
         terminationMessagePolicy: FallbackToLogsOnError
         command: ["/tini", "--", "/bin/bash"]
         env:
@@ -26,7 +26,7 @@ spec:
               echo "Setup Vivado, running job..." &&
               python /opt/repo/wa-hls4ml-search/iter_manager_v2.py
               -f /opt/repo/wa-hls4ml-search/pregen_3layer_models/filelist_72.csv
-              -o /output/3layer_run_vsynth
+              -o /output/3layer_run_vsynth_2023-2
               --hls4ml_strat resource
               --rf_upper 4097
               --rf_lower 1024

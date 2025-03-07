@@ -96,11 +96,19 @@ def process_json_files(input_dir, output_file, model_dir, filelist=None):
                         if 'dense' in layer.lower() or 'conv' in layer.lower():
                             hls_config['LayerName'][layer]['ReuseFactor'] = reuse_factor
 
+                hls_resource_report = {
+                    'bram': json_data['CSynthesisReport']['BRAM_18K'],
+                    'dsp': json_data['CSynthesisReport']['DSP'],
+                    'ff': json_data['CSynthesisReport']['FF'],
+                    'lut': json_data['CSynthesisReport']['LUT'],
+                    'uram': json_data['CSynthesisReport']['URAM'],
+                }
                 processed_entry = {
                     'meta_data': meta_data,
                     'model_config': model_config,
                     'hls_config': hls_config,
                     'resource_report': resource_report,
+                    'hls_resource_report': hls_resource_report,
                     'latency_report': latency_report,
                     'target_part': "xcu250-figd2104-2L-e",
                     'vivado_version':tool_version if tool_version is not None else "2020.1",
@@ -172,11 +180,19 @@ def process_json_files_filelist(input_dir, output_file, filelist_path):
                         if 'dense' in layer.lower() or 'conv' in layer.lower():
                             hls_config['LayerName'][layer]['ReuseFactor'] = reuse_factor
 
+                hls_resource_report = {
+                    'bram': json_data['CSynthesisReport']['BRAM_18K'],
+                    'dsp': json_data['CSynthesisReport']['DSP'],
+                    'ff': json_data['CSynthesisReport']['FF'],
+                    'lut': json_data['CSynthesisReport']['LUT'],
+                    'uram': json_data['CSynthesisReport']['URAM'],
+                }
                 processed_entry = {
                     'meta_data': meta_data,
                     'model_config': model_config,
                     'hls_config': hls_config,
                     'resource_report': resource_report,
+                    'hls_resource_report': hls_resource_report,
                     'latency_report': latency_report,
                     'target_part': "xcu250-figd2104-2L-e",
                     'vivado_version':tool_version if tool_version is not None else "2020.1",
@@ -225,11 +241,19 @@ def process_json_entry(model, hls_config, filename, part="xcu250-figd2104-2L-e")
                 'lut': json_data['VivadoSynthReport']['LUT'],
                 'uram': json_data['VivadoSynthReport']['URAM'],
             }
+            hls_resource_report = {
+                'bram': json_data['CSynthesisReport']['BRAM_18K'],
+                'dsp': json_data['CSynthesisReport']['DSP'],
+                'ff': json_data['CSynthesisReport']['FF'],
+                'lut': json_data['CSynthesisReport']['LUT'],
+                'uram': json_data['CSynthesisReport']['URAM'],
+            }
             processed_entry = {
                 'meta_data': meta_data,
                 'model_config': model_config,
                 'hls_config': hls_config,
                 'resource_report': resource_report,
+                'hls_resource_report': hls_resource_report,
                 'latency_report': latency_report,
                 'target_part': part,
                 'vivado_version':tool_version if tool_version is not None else "2020.1",
