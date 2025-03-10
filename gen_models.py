@@ -5,13 +5,15 @@ import keras.layers
 from keras.models import Model, model_from_json
 
 import random
-import json
+import time
 import numpy as np
 
 # rounds everything to base2
 clip_base_2 = lambda x: 2**round(np.log2(x))
 
 class ModelGenerator:
+
+    failed_models = 0
 
     def __init__(self):
         self.reset_layers()
@@ -113,7 +115,9 @@ class ModelGenerator:
             layer_choice[-1].name = 'dense'
         elif 'conv' in last_layer.name:
             layer_type = random.choices(self.conv_layers, weights=self.params['probs']['conv_layers'], k=1)[0] if input_layer == None else last_layer
-            self.params['last_layer_shape'] = last_layer.shape[1:]  if input_layer == None else self.params['last_layer_shape']
+            if input_layer == None:
+                self.params['last_layer_shape']
+            
             hyper_params = self.config_layer(layer_type)
 
             last_layer = last_layer if input_layer == None else input_layer
@@ -157,7 +161,8 @@ class ModelGenerator:
                 layer_choice[-1].name = 'dense'
         elif 'time' in last_layer.name:
             layer_type = random.choices(self.time_layers, weights=self.params['probs']['time_layers'], k=1)[0] if input_layer == None else last_layer
-            self.params['last_layer_shape'] = last_layer.shape[1:]  if input_layer == None else self.params['last_layer_shape']
+            if input_layer == None:
+                self.params['last_layer_shape']
             hyper_params = self.config_layer(layer_type)
 
             last_layer = last_layer if input_layer == None else input_layer
@@ -193,6 +198,7 @@ class ModelGenerator:
                 layer_choice.append(Flatten()(last_layer))
                 layer_choice[-1].name = 'dense'
 
+        self.params['last_layer_shape'] = layer_choice[-1].shape[1:]
         self.layer_depth += 1
         return layer_choice
 
@@ -253,49 +259,54 @@ class ModelGenerator:
         elif init_layer in self.time_layers:
             input_shape = (clip_base_2(random.randint(self.params['time_lb'], self.params['time_ub'])), 
                                 random.randint(self.params['dense_lb'], self.params['dense_ub']))
-        layers = [Input(shape=input_shape)]
+        try:
+            layers = [Input(shape=input_shape)]
 
-        # create the initial layer to go off of
-        self.params['last_layer_shape'] = layers[0].shape[1:]
+            # create the initial layer to go off of
+            self.params['last_layer_shape'] = layers[0].shape[1:]
 
-        if init_layer in self.dense_layers:
-            init_layer.name = "dense"
-        elif init_layer in self.conv_layers:
-            init_layer.name = "conv"
-        elif init_layer in self.time_layers:
-            init_layer.name = "time"
-        else:
-            raise Exception("Layer not of a valid type")
-        
-        new_layers = self.next_layer(init_layer, input_layer=layers[0])
+            if init_layer in self.dense_layers:
+                init_layer.name = "dense"
+            elif init_layer in self.conv_layers:
+                init_layer.name = "conv"
+            elif init_layer in self.time_layers:
+                init_layer.name = "time"
+            else:
+                raise Exception("Layer not of a valid type")
 
-        layers.extend(new_layers)
-        while layer_units < total_layers:
-            # provides a callback function. Will return if any value is instructed to return from the call
-            if callback:
-                callback_output = callback(self, layers)
-                if callback_output:
-                    return callback_output
+            layers.extend(self.next_layer(init_layer, input_layer=layers[0]))
+            while layer_units < total_layers:
+                # provides a callback function. Will return if any value is instructed to return from the call
+                if callback:
+                    callback_output = callback(self, layers)
+                    if callback_output:
+                        return callback_output
 
-            # disables dropout on last layer
-            if layer_units == total_layers - 2 and layers[-1].name:
-                self.params['flatten_chance'] = 1
-            if layer_units == total_layers - 1:
-                self.params['dropout_rate'] = 0
+                # disables dropout on last layer
+                if layer_units == total_layers - 2 and layers[-1].name:
+                    self.params['flatten_chance'] = 1
+                if layer_units == total_layers - 1:
+                    self.params['dropout_rate'] = 0
 
-            new_layers, hyper_params = self.next_layer(layers[-1])
-            layers.extend(new_layers)
-            layer_units += 1
+                layers.extend(self.next_layer(layers[-1]))
+                layer_units += 1
 
-        # compiles the model
-        model = Model(inputs=layers[0], outputs=layers[-1])
-        model.build(input_shape)
+            # compiles the model
+            model = Model(inputs=layers[0], outputs=layers[-1])
+            model.build(input_shape)
 
-        if save_file:
-            with open(save_file, "w") as f:
-                f.write(model.to_json())
+            if save_file:
+                with open(save_file, "w") as f:
+                    f.write(model.to_json())
 
-        return model
+            return model
+        except:
+            print("Model failed. Attempting new generation")
+            self.failed_models += 1
+            self.reset_layers()
+            return self.gen_network(total_layers=total_layers, 
+                    add_params=add_params, callback=callback,
+                    save_file=save_file)
     
     def reset_layers(self) -> None:
         """
@@ -351,8 +362,16 @@ class ModelGenerator:
 if __name__ == '__main__':
     mg = ModelGenerator()
     # goal to gen random models from 3-20 
-    for _ in range(1):
-        model = mg.gen_network(add_params={'dense_lb': 32, 'dense_ub': 64, 'conv_filters_ub': 16}, total_layers=random.randint(3, 7), save_file="model_test")
-        mg.reset_layers()
-        
-        model.summary()
+    failed_models = 0
+    glob_t = time.time()
+    epoch_range = 8
+    epoch_size = 1000
+    for test in range(epoch_range):
+        for _ in range(epoch_size):
+            model = mg.gen_network(add_params={'dense_lb': 32, 'dense_ub': 64, 'conv_filters_ub': 16}, total_layers=random.randint(3, 7))
+            mg.reset_layers()
+            
+        print(f"Finished {test} generation")
+        failed_models += mg.failed_models
+    print(f"Avg fail rate is: {failed_models / (epoch_range * epoch_size)}")
+    print(f"Total time was {round(time.time() - glob_t, 2)}s for an avg time of {round((time.time() - glob_t) / epoch_range, 2)}s / 1000 models")
