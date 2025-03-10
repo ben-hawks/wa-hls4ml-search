@@ -2,9 +2,10 @@
 from qkeras import QDense, QConv2D, QConv1D, QAveragePooling2D, QActivation, quantized_bits, QDepthwiseConv2D, QSeparableConv2D, QSeparableConv1D, QLSTM
 from keras.layers import Dense, Conv2D, Flatten, Activation, Conv1D, LSTM, Layer, Input
 import keras.layers
-from keras.models import Model
+from keras.models import Model, model_from_json
 
 import random
+import json
 import numpy as np
 
 # rounds everything to base2
@@ -76,7 +77,7 @@ class ModelGenerator:
         
         return hyper_params
 
-    def next_layer(self, last_layer: Layer, input_layer: Layer = None) -> Layer:
+    def next_layer(self, last_layer: Layer, input_layer: Layer = None, pre_config: dict = None) -> Layer:
         """
         Takes previous layer and configuration displays and returns back layer
         
@@ -88,7 +89,7 @@ class ModelGenerator:
             # chooses a random layer and generates config for it. Treats layer + subsequent blocks as a unit
             layer_type = random.choices(self.dense_layers, weights=self.params['probs']['dense_layers'], k=1)[0] if input_layer == None else last_layer
 
-            hyper_params = self.config_layer(layer_type)
+            hyper_params = self.config_layer(layer_type) if not pre_config else pre_config
 
             last_layer = last_layer if input_layer == None else input_layer
 
@@ -196,7 +197,8 @@ class ModelGenerator:
         return layer_choice
 
     def gen_network(self, total_layers: int = 3, 
-                    add_params: dict = {}, callback = None) -> Model:
+                    add_params: dict = {}, callback = None,
+                    save_file: str = None) -> Model:
         """
         Generates interconnected network based on defaults or extra params, returns Model
 
@@ -265,7 +267,9 @@ class ModelGenerator:
         else:
             raise Exception("Layer not of a valid type")
         
-        layers.extend(self.next_layer(init_layer, input_layer=layers[0]))
+        new_layers = self.next_layer(init_layer, input_layer=layers[0])
+
+        layers.extend(new_layers)
         while layer_units < total_layers:
             # provides a callback function. Will return if any value is instructed to return from the call
             if callback:
@@ -278,15 +282,19 @@ class ModelGenerator:
                 self.params['flatten_chance'] = 1
             if layer_units == total_layers - 1:
                 self.params['dropout_rate'] = 0
-            layers.extend(self.next_layer(layers[-1]))
+
+            new_layers, hyper_params = self.next_layer(layers[-1])
+            layers.extend(new_layers)
             layer_units += 1
 
         # compiles the model
         model = Model(inputs=layers[0], outputs=layers[-1])
         model.build(input_shape)
 
-        self.save_network(model)
-        
+        if save_file:
+            with open(save_file, "w") as f:
+                f.write(model.to_json())
+
         return model
     
     def reset_layers(self) -> None:
@@ -334,37 +342,17 @@ class ModelGenerator:
             if not params['probs'][param_type]:
                 params['probs'][param_type] = [1 / len(pairs[param_type]) for _ in pairs[param_type]]
 
-    def save_network(self, model: Model):
-        print(self.q_on)
-        for layer in model.layers:
-            config = layer.get_config()
-            
-            layer_data = {
-                "Layer Name": layer.name,
-                "Layer Type": type(layer).__name__,
-                "Input Shape": config.get("input_shape", "N/A"),
-                # "Output Shape": layer.output_shape,
-                # "Number of Parameters": layer.count_params(),
-                "Stride": config.get("strides", "N/A"),
-                "Kernel Size": config.get("kernel_size", "N/A"),
-                "Filters/Units": config.get("filters", config.get("units", "N/A")),
-                "Activation": config.get("activation", "N/A"),
-                "Padding": config.get("padding", "N/A"),
-                "Dilation Rate": config.get("dilation_rate", "N/A"),
-                "Dropout Rate": config.get("rate", "N/A"),
-                "Batch Norm": "Yes" if "BatchNormalization" in type(layer).__name__ else "No"
-            }
-            print(layer_data)
+    def load_model(self, save_file: str) -> Model:
+        with open(save_file, "r") as json_file:
+            loaded_model_json = json_file.read()
 
-
+        return model_from_json(loaded_model_json)
 
 if __name__ == '__main__':
     mg = ModelGenerator()
     # goal to gen random models from 3-20 
     for _ in range(1):
-        model = mg.gen_network(add_params={'dense_lb': 1, 'dense_ub': 64, 'conv_filters_ub': 16, 'q_chance': 1}, total_layers=random.randint(3, 7))
+        model = mg.gen_network(add_params={'dense_lb': 32, 'dense_ub': 64, 'conv_filters_ub': 16}, total_layers=random.randint(3, 7), save_file="model_test")
         mg.reset_layers()
         
         model.summary()
-
-# TODO: Save models to csv and make it reloadable within current framework
