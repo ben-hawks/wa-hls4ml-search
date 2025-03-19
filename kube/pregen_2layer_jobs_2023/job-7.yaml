@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
       - name: hls4ml-docker
-        image:  bhawks/wa-hls4ml-search:latest
+        image:  ghcr.io/ben-hawks/wa-hls4ml-search:v2023.2
         terminationMessagePolicy: FallbackToLogsOnError
         command: ["/tini", "--", "/bin/bash"]
         env:
