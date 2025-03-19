@@ -39,15 +39,17 @@ spec:
           mountPath: /opt/repo
         - name: wa-search-output-backup
           mountPath: /output
+        - name: eph-storage
+          mountPath: /project
         resources:
           limits:
             memory: 16Gi
             cpu: "3"
-            ephemeral-storage: "100Gi"
+            ephemeral-storage: 128Gi
           requests:
             memory: 16Gi
             cpu: "3"
-            ephemeral-storage: "100Gi"
+            ephemeral-storage: 128Gi
       initContainers:
       - name: init-clone-repo
         image: alpine/git
@@ -97,5 +99,9 @@ spec:
       - name: git-repo-bkup
         persistentVolumeClaim:
             claimName: wa-search-git-bkup
+      - name: eph-storage
+        emptyDir:
+          sizeLimit: 128Gi
       restartPolicy: Never
+
   backoffLimit: 5

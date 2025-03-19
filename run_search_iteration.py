@@ -43,6 +43,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         co = {}
         _add_supported_quantized_objects(co)
         model = load_model(model_file, custom_objects=co)
+        model.summary()
     else:
         model = generate_model_from_config(config_str, precision, output_dir=".", save_model=False)
         model.summary()
