@@ -3,6 +3,8 @@ from qkeras import QDense, QConv2D, QConv1D, QAveragePooling2D, QActivation, qua
 from keras.layers import Dense, Conv2D, Flatten, Activation, Conv1D, LSTM, Layer, Input
 import keras.layers
 from keras.models import Model, model_from_json
+from qkeras.utils import _add_supported_quantized_objects
+import typing
 
 import random
 import time
@@ -22,7 +24,7 @@ class ModelGenerator:
         """
         Returns hyper parameters for layer initialization as a dict
 
-        argumnets:
+        arguments:
         layer_type -- takes in the selection of layer so it can specify
         """
 
@@ -198,7 +200,7 @@ class ModelGenerator:
 
     def gen_network(self, total_layers: int = 3, 
                     add_params: dict = {}, callback = None,
-                    save_file: str = None) -> Model:
+                    save_file: typing.IO = None) -> Model:
         """
         Generates interconnected network based on defaults or extra params, returns Model
 
@@ -206,6 +208,7 @@ class ModelGenerator:
         total_layers -- total active layers in a network (default: 3)
         add_params -- parameters to specify besides defaults for model generation (default: {})
         q_chance -- the prob that we use qkeras over keras
+        save_file -- open file descriptor for log file (default: None)
         """
 
         add_params = {k: add_params[k] for k in add_params}
@@ -290,11 +293,11 @@ class ModelGenerator:
             model.build(input_shape)
 
             if save_file:
-                with open(save_file, "w") as f:
-                    f.write(model.to_json())
+                save_file.write(model.to_json())
+                save_file.write("--------------")
 
             return model
-        except:
+        except ValueError:
             print("Model failed. Attempting new generation")
             self.failed_models += 1
             self.reset_layers()
@@ -319,11 +322,13 @@ class ModelGenerator:
         """
         Filter self.<layers> based on whether q_on is set or not
 
+        arguments:
         q_chance -- the chance that we load qkeras over keras
         params -- params to dictacte flow
         """
         blacklist = []
         
+        # filter out the qkeras/non-qkeras layers
         self.q_on = random.random() < q_chance
         for layer in set(self.start_layers + self.conv_layers + self.dense_layers):
             is_qkeras = layer.__module__[:6] == 'qkeras'
@@ -336,6 +341,7 @@ class ModelGenerator:
         self.conv_layers = [layer for layer in self.conv_layers if layer not in blacklist]
         self.time_layers = [layer for layer in self.time_layers if layer not in blacklist]
 
+        # adjust activation layers based on quantization
         if self.q_on:
             if 'softmax' in self.activations:
                 self.activations.remove('softmax')      # doesnt have a qkeras equivalent
@@ -347,27 +353,41 @@ class ModelGenerator:
             if not params['probs'][param_type]:
                 params['probs'][param_type] = [1 / len(pairs[param_type]) for _ in pairs[param_type]]
 
-    def load_model(self, save_file: str) -> Model:
-        with open(save_file, "r") as json_file:
-            loaded_model_json = json_file.read()
+    def load_models(self, save_file: str) -> list[Model]:
+        """
+        Parses and returns an iterable of generated models
+        
+        arguments:
+        save_file -- path to batch of models
+        """
 
-        return model_from_json(loaded_model_json)
+        with open(save_file, "r") as chunk_file:
+            models = chunk_file.read().split("--------------")[:-1]
+
+            for model_desc in models:
+                co = {}
+                _add_supported_quantized_objects(co)
+                yield model_from_json(model_desc, custom_objects=co)
 
 if __name__ == '__main__':
     mg = ModelGenerator()
     # goal to gen random models from 3-20 
     failed_models = 0
     glob_t = time.time()
-    epoch_range = 1
-    epoch_size = 10
-    for test in range(epoch_range):
-        for _ in range(epoch_size):
-            model = mg.gen_network(add_params={'dense_lb': 32, 'dense_ub': 64, 'conv_filters_ub': 16}, total_layers=random.randint(3, 7))
-            model.summary()
+    batch_range = 1
+    batch_size = 3
+    for batch_i in range(batch_range):
+        save_file = open(f"batch_{batch_i}", "w")
+        for _ in range(batch_size):
+            model = mg.gen_network(add_params={'dense_lb': 32, 'dense_ub': 64, 'conv_filters_ub': 16}, total_layers=random.randint(3, 7), save_file=save_file)
             mg.reset_layers()
+        save_file.close()
             
-        print(f"Finished {test} generation")
+        print(f"Finished batch_{batch_i} generation")
         failed_models += mg.failed_models
-    print(f"Avg fail rate is: {failed_models / (epoch_range * epoch_size)}")
+    print(f"Avg fail rate is: {failed_models / (batch_range * batch_size)}")
 
-    print(f"Total time was {round(time.time() - glob_t, 2)}s for an avg throughput of {round((epoch_range * epoch_size) / (time.time() - glob_t), 2)} models / s")
+    print(f"Total time was {round(time.time() - glob_t, 2)}s for an avg throughput of {round((batch_range * batch_size) / (time.time() - glob_t), 2)} models / s")
+
+    for model in mg.load_models("batch_0"):
+        model.summary()
