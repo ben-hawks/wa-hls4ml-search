@@ -100,8 +100,7 @@ class ModelGenerator:
                             kernel_quantizer=quantized_bits(self.params['weight_bit_width'], self.params['weight_int_width']),
                             use_bias=hyper_params['use_bias'])(last_layer)]
                 if "no_activation" not in hyper_params['activation']:
-                    layer_choice.append(QActivation(activation=hyper_params['activation'], 
-                                                    name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+                    layer_choice.append(QActivation(activation=hyper_params['activation'])(layer_choice[-1]))
             else:
                 layer_choice = [layer_type(hyper_params['size'], 
                             use_bias=hyper_params['use_bias'])(last_layer)]
@@ -109,8 +108,7 @@ class ModelGenerator:
                     layer_choice.append(keras.layers.Dropout(hyper_params['dropout_rate'])(layer_choice[-1]))
 
                 if "no_activation" not in hyper_params['activation']:
-                    layer_choice.append(Activation(activation=hyper_params['activation'], 
-                                                    name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+                    layer_choice.append(Activation(activation=hyper_params['activation'])(layer_choice[-1]))
 
             self.name = 'dense'
         elif 'conv' in self.name:
@@ -136,8 +134,7 @@ class ModelGenerator:
                                             use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
 
                 if "no_activation" not in hyper_params['activation']:
-                    layer_choice.append(QActivation(activation=hyper_params['activation'], 
-                        name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+                    layer_choice.append(QActivation(activation=hyper_params['activation'])(layer_choice[-1]))
 
                 if hyper_params['pooling']:
                     layer_choice.append(QAveragePooling2D()(layer_choice[-1]))
@@ -146,8 +143,7 @@ class ModelGenerator:
                                         use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
 
                 if "no_activation" not in hyper_params['activation']:
-                    layer_choice.append(Activation(activation=hyper_params['activation'], 
-                        name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+                    layer_choice.append(Activation(activation=hyper_params['activation'])(layer_choice[-1]))
 
                 if hyper_params['pooling']:
                     pooling = random.choices([keras.layers.MaxPooling2D, keras.layers.AveragePooling2D], 
@@ -179,8 +175,7 @@ class ModelGenerator:
                     raise NotImplemented
 
                 if "no_activation" not in hyper_params['activation']:
-                    layer_choice.append(QActivation(activation=hyper_params['activation'], 
-                        name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+                    layer_choice.append(QActivation(activation=hyper_params['activation'])(layer_choice[-1]))
             else:
                 if layer_type == LSTM:
                     raise NotImplemented
@@ -189,8 +184,7 @@ class ModelGenerator:
                                             use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
                 
                 if "no_activation" not in hyper_params['activation']:
-                    layer_choice.append(Activation(activation=hyper_params['activation'], 
-                        name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
+                    layer_choice.append(Activation(activation=hyper_params['activation'])(layer_choice[-1]))
                     
             
             self.name = 'time'
