@@ -87,7 +87,7 @@ class ModelGenerator:
         last_layer -- previous keras/qkeras layer
         """
 
-        if 'dense' in last_layer.name:
+        if 'dense' in self.name:
             # chooses a random layer and generates config for it. Treats layer + subsequent blocks as a unit
             layer_type = random.choices(self.dense_layers, weights=self.params['probs']['dense_layers'], k=1)[0] if input_layer == None else last_layer
 
@@ -112,8 +112,8 @@ class ModelGenerator:
                     layer_choice.append(Activation(activation=hyper_params['activation'], 
                                                     name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
 
-            layer_choice[-1].name = 'dense'
-        elif 'conv' in last_layer.name:
+            self.name = 'dense'
+        elif 'conv' in self.name:
             layer_type = random.choices(self.conv_layers, weights=self.params['probs']['conv_layers'], k=1)[0] if input_layer == None else last_layer
             if input_layer == None:
                 self.params['last_layer_shape']
@@ -155,11 +155,11 @@ class ModelGenerator:
                     layer_choice.append(pooling((2, 2))(layer_choice[-1]))
             
             
-            layer_choice[-1].name = 'conv'
+            self.name = 'conv'
             if hyper_params['flatten'] and input_layer == None:
                 layer_choice.append(Flatten()(last_layer))
-                layer_choice[-1].name = 'dense'
-        elif 'time' in last_layer.name:
+                self.name = 'dense'
+        elif 'time' in self.name:
             layer_type = random.choices(self.time_layers, weights=self.params['probs']['time_layers'], k=1)[0] if input_layer == None else last_layer
             if input_layer == None:
                 self.params['last_layer_shape']
@@ -193,10 +193,10 @@ class ModelGenerator:
                         name=f"{hyper_params['activation']}_{self.layer_depth}")(layer_choice[-1]))
                     
             
-            layer_choice[-1].name = 'time'
+            self.name = 'time'
             if hyper_params['flatten'] and input_layer == None:
                 layer_choice.append(Flatten()(last_layer))
-                layer_choice[-1].name = 'dense'
+                self.name = 'dense'
 
         self.params['last_layer_shape'] = layer_choice[-1].shape[1:]
         self.layer_depth += 1
@@ -266,11 +266,11 @@ class ModelGenerator:
             self.params['last_layer_shape'] = layers[0].shape[1:]
 
             if init_layer in self.dense_layers:
-                init_layer.name = "dense"
+                self.name = "dense"
             elif init_layer in self.conv_layers:
-                init_layer.name = "conv"
+                self.name = "conv"
             elif init_layer in self.time_layers:
-                init_layer.name = "time"
+                self.name = "time"
             else:
                 raise Exception("Layer not of a valid type")
 
@@ -283,7 +283,7 @@ class ModelGenerator:
                         return callback_output
 
                 # disables dropout on last layer
-                if layer_units == total_layers - 2 and layers[-1].name:
+                if layer_units == total_layers - 2 and self.name:
                     self.params['flatten_chance'] = 1
                 if layer_units == total_layers - 1:
                     self.params['dropout_rate'] = 0
@@ -364,14 +364,16 @@ if __name__ == '__main__':
     # goal to gen random models from 3-20 
     failed_models = 0
     glob_t = time.time()
-    epoch_range = 8
-    epoch_size = 1000
+    epoch_range = 1
+    epoch_size = 10
     for test in range(epoch_range):
         for _ in range(epoch_size):
             model = mg.gen_network(add_params={'dense_lb': 32, 'dense_ub': 64, 'conv_filters_ub': 16}, total_layers=random.randint(3, 7))
+            model.summary()
             mg.reset_layers()
             
         print(f"Finished {test} generation")
         failed_models += mg.failed_models
     print(f"Avg fail rate is: {failed_models / (epoch_range * epoch_size)}")
-    print(f"Total time was {round(time.time() - glob_t, 2)}s for an avg time of {round((time.time() - glob_t) / epoch_range, 2)}s / 1000 models")
+
+    print(f"Total time was {round(time.time() - glob_t, 2)}s for an avg throughput of {round((epoch_range * epoch_size) / (time.time() - glob_t), 2)} models / s")
