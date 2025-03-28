@@ -1,23 +1,41 @@
 import argparse
 import os
 import sys
+import json
 import pandas as pd
 from run_search_iteration import run_iter
-
+from tensorflow.keras.models import model_from_json
+from qkeras.utils import _add_supported_quantized_objects
+import datetime
 
 def main(args):
     rf_step = args.rf_step-1
-    filelist = pd.read_csv(args.file)
-    #print(filelist[["model_name","model_file"]])
-    for index, row in filelist[["model_name","config_str","prec"]].iterrows():
-        model_name = row["model_name"]
-        config_str = row["config_str"]
-        prec = row["prec"]
-        output_loc = args.output + row["model_name"]
-        for rf in range(args.rf_lower, args.rf_upper, rf_step):
-            print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth,model_name, rf))
-            run_iter(model_name, output_loc,  rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, precision=prec, config_str=config_str, hlsproj=args.hlsproj)
-
+    if args.file.endswith('.csv'):
+        filelist = pd.read_csv(args.file)
+        #print(filelist[["model_name","model_file"]])
+        for index, row in filelist[["model_name","config_str","prec"]].iterrows():
+            model_name = row["model_name"]
+            config_str = row["config_str"]
+            prec = row["prec"]
+            output_loc = args.output + row["model_name"]
+            for rf in range(args.rf_lower, args.rf_upper, rf_step):
+                print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth,model_name, rf))
+                run_iter(model_name, output_loc,  rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, precision=prec, config_str=config_str, hlsproj=args.hlsproj)
+    elif args.file.endswith('.json'):
+        with open(args.file, 'r') as file:
+            co = {}
+            _add_supported_quantized_objects(co)
+            models = json.load(file)
+            for model_desc in models:
+                model = model_from_json(model_desc, custom_objects=co)
+                current_timestamp = datetime.datetime.now()
+                # Format the timestamp to exclude invalid characters for filenames
+                formatted_timestamp = current_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+                for rf in range(args.rf_lower, args.rf_upper, rf_step):
+                    model_name = f"conv_model{formatted_timestamp}_rf{rf}"  # Create a unique name for each model based on the current time and rf
+                    print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth, model_name, rf))
+                    run_iter(model_name, None, rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
+                             hlsproj=args.hlsproj, model = model)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser = argparse.ArgumentParser(add_help=False)

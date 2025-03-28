@@ -37,16 +37,20 @@ def print_dict(d, indent=0):
 def main(args):
     run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj, args.vsynth, args.hls4ml_strat)
 
-def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency", precision=None, config_str=None):
-
-    if config_str is None: # load model from file, else generate model from config string
+def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency", precision=None, config_str=None, model=None):
+    if model is not None: # if model is passed in directly, use it
+        print("Using passed in model")
+        model.summary()
+    elif config_str is None and model_file is not None: # load model from file,
         co = {}
         _add_supported_quantized_objects(co)
         model = load_model(model_file, custom_objects=co)
         model.summary()
-    else:
+    elif config_str is not None and precision is not None: # else generate model from config string
         model = generate_model_from_config(config_str, precision, output_dir=".", save_model=False)
         model.summary()
+    else:
+        raise ValueError("Must specify either model or config_str with correct parameters. ")
 
     json_name = output+"/raw_reports/"+name+"_rf"+str(rf)+"_report.json"
     processed_json_name = output+"/"+name+"_rf"+str(rf)+"_processed.json"
