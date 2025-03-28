@@ -26,13 +26,9 @@ def main(args):
             co = {}
             _add_supported_quantized_objects(co)
             models = json.load(file)
-            for model_desc in models:
+            for model_name, model_desc in models.items():
                 model = model_from_json(model_desc, custom_objects=co)
-                current_timestamp = datetime.datetime.now()
-                # Format the timestamp to exclude invalid characters for filenames
-                formatted_timestamp = current_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
                 for rf in range(args.rf_lower, args.rf_upper, rf_step):
-                    model_name = f"conv_model{formatted_timestamp}_rf{rf}"  # Create a unique name for each model based on the current time and rf
                     print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth, model_name, rf))
                     run_iter(model_name, None, rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
                              hlsproj=args.hlsproj, model = model)
