@@ -94,7 +94,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         cfg_q['HLSConfig'] = config
         cfg_q['KerasModel'] = model
         cfg_q['OutputDir'] = hls_dir
-        cfg_q['XilinxPart'] = part
+        cfg_q['Part'] = part
 
         hls_model = hls4ml.converters.keras_to_hls(cfg_q)
     else:
