@@ -1,0 +1,9 @@
+model_name,d_in,d_out,prec,model_file
+dense_256_224_14b,256,224,14,pregen_models/dense_256_224_14b.h5
+dense_256_256_2b,256,256,2,pregen_models/dense_256_256_2b.h5
+dense_256_256_4b,256,256,4,pregen_models/dense_256_256_4b.h5
+dense_256_256_6b,256,256,6,pregen_models/dense_256_256_6b.h5
+dense_256_256_8b,256,256,8,pregen_models/dense_256_256_8b.h5
+dense_256_256_10b,256,256,10,pregen_models/dense_256_256_10b.h5
+dense_256_256_12b,256,256,12,pregen_models/dense_256_256_12b.h5
+dense_256_256_14b,256,256,14,pregen_models/dense_256_256_14b.h5

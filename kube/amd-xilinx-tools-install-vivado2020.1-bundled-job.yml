@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: amd-xilinx-tools-install-vivado20201
+  labels:
+    jobgroup: wa-hls4ml-search
+spec:
+  template:
+    spec:
+      containers:
+      - name: vivado-docker
+        image:  bhawks/vivado-docker:alma8-vivado-2020.1-installer # Use larger, pre-bundled image
+        terminationMessagePolicy: FallbackToLogsOnError
+        env: # URL Expires, must go to Xilinx download form/site, start download locally, then use given URL w/Token
+          - name: CERNBOX_URL_LIST
+            value: "https://xilinx-ax-dl.entitlenow.com/dl/ul/2020/06/03/R210329635/Xilinx_Unified_2020.1_0602_1208.tar.gz?hash=P2BvSUKOZJfMiTZ_9WDbug&expires=1711004365&filename=Xilinx_Unified_2020.1_0602_1208.tar.gz;"
+          - name: INSTALLER_BASE_DIR
+            value: "/ramdisk"
+          - name: INSTALLER_PATH
+            value: "/ramdisk/Xilinx_Unified_2020.1_0602_1208/"
+        volumeMounts:
+        - name: amd-xilinx-tools
+          mountPath: /opt/Xilinx
+        - name: ram-disk
+          mountPath: /ramdisk
+        resources:
+          limits:
+            memory: 48Gi
+            cpu: "3"
+          requests:
+            memory: 48Gi
+            cpu: "3"
+      nodeSelector:
+        nautilus.io/disktype: nvme
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/region
+                    operator: In
+                    values:
+                      - us-west
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values:
+                      - "true"
+      volumes:
+      - name: amd-xilinx-tools
+        persistentVolumeClaim:
+          claimName: amd-xilinx-tools-backup
+      - name: wa-search-output
+        persistentVolumeClaim:
+          claimName: wa-search-output
+      - name: ram-disk
+        emptyDir:
+          medium: "Memory"
+      restartPolicy: Never
+  backoffLimit: 5

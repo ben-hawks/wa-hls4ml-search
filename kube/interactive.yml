@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wa-hls4ml-it
+  labels:
+    jobgroup: wa-hls4ml-it
+spec:
+  template:
+    spec:
+      containers:
+      - name: ubuntu
+        image:  ubuntu
+        command: ["sh","-l", "-c", "echo 'Interactive Pod, waiting for login' && sleep infinity"]
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - name: xilinx-tools
+          mountPath: /tools/Xilinx
+        - name: wa-search-output-backup
+          mountPath: /results
+        resources:
+          limits:
+            memory: 4Gi
+            cpu: "3"
+          requests:
+            memory: 2Gi
+            cpu: "2"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/region
+                    operator: In
+                    values:
+                      - us-west
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values:
+                      - "true"
+      volumes:
+      - name: xilinx-tools
+        persistentVolumeClaim:
+          claimName: xilinx-tools
+      - name: wa-search-output-backup
+        persistentVolumeClaim:
+          claimName: wa-search-output-backup
+      restartPolicy: Never
+  backoffLimit: 5

@@ -1,0 +1,86 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wa-hls4ml-search-pregen-latency-41
+  labels:
+    jobgroup: wa-hls4ml-search
+spec:
+  template:
+    spec:
+      containers:
+      - name: hls4ml-docker
+        image:  bhawks/wa-hls4ml-search:alma8_vivado2020-1_hls4ml0-8-1_tf
+        terminationMessagePolicy: FallbackToLogsOnError
+        command: ["/bin/bash"]
+        args:
+          - -l
+          - -c
+          - >-
+              cat /home/vivado/.bashrc &&
+              source /venv/bin/activate && 
+              echo "activated venv" &&
+              source /opt/Xilinx/Vivado/2020.1/settings64.sh &&
+              echo "Setup Vivado, now doing hacks and running job..." &&
+              python /opt/repo/wa-hls4ml-search/iter_manager.py
+              -f /opt/repo/wa-hls4ml-search/pregen_latency_models/filelist_41.csv
+              -o /output/latency_run
+              --hls4ml_strat latency
+              --rf_upper 129
+              --rf_lower 1
+              --rf_step 32
+        volumeMounts:
+        - name: amd-xilinx-tools
+          mountPath: /opt/Xilinx
+        - name: git-repo
+          mountPath: /opt/repo
+        - name: wa-search-output
+          mountPath: /output
+        resources:
+          limits:
+            memory: 3.5Gi
+            cpu: "2.4"
+          requests:
+            memory: 3Gi
+            cpu: "2"
+      initContainers:
+      - name: init-clone-repo
+        image: alpine/git
+        args:
+          - clone
+          - --single-branch
+          - https://github.com/ben-hawks/wa-hls4ml-search
+          - -b
+          - main
+          - /opt/repo/wa-hls4ml-search
+        volumeMounts:
+          - name: git-repo
+            mountPath: /opt/repo
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 1000
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/region
+                    operator: In
+                    values:
+                      - us-west
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values:
+                      - "true"
+      volumes:
+      - name: amd-xilinx-tools
+        persistentVolumeClaim:
+          claimName: amd-xilinx-tools
+      - name: wa-search-output
+        persistentVolumeClaim:
+          claimName: wa-search-output
+      - name: git-repo
+        emptyDir:
+          sizeLimit: 1Gi
+      restartPolicy: Never
+  backoffLimit: 5
