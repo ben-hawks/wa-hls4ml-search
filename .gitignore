@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 nn_venv/*
 =======
 # Byte-compiled / optimized / DLL files
@@ -165,4 +164,3 @@ datapathraw_data.txt
 
 #HLS project on HPRC
 hlsproj
->>>>>>> fork/main
