@@ -21,7 +21,7 @@ def main(args):
             for rf in range(args.rf_lower, args.rf_upper, rf_step):
                 print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth,model_name, rf))
                 run_iter(model_name, output_loc,  rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, precision=prec, config_str=config_str, hlsproj=args.hlsproj)
-    elif args.file.endswith('.json'):
+    elif args.file.endswith('.json'): #hacky thing assuming json is only for conv models... fix with real arg later
         with open(args.file, 'r') as file:
             co = {}
             _add_supported_quantized_objects(co)
@@ -31,7 +31,7 @@ def main(args):
                 for rf in range(args.rf_lower, args.rf_upper, rf_step):
                     print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth, model_name, rf))
                     run_iter(model_name, None, rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
-                             hlsproj=args.hlsproj, model = model)
+                             hlsproj=args.hlsproj, model = model, conv=True)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser = argparse.ArgumentParser(add_help=False)

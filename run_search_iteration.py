@@ -37,7 +37,7 @@ def print_dict(d, indent=0):
 def main(args):
     run_iter(args.name, args.model, args.rf, args.output, args.part, args.hlsproj, args.vsynth, args.hls4ml_strat)
 
-def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency", precision=None, config_str=None, model=None):
+def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "/output", part = 'xcu250-figd2104-2L-e', hlsproj = '/project/hls_proj', vsynth=True, strat="latency", precision=None, config_str=None, model=None, conv=False):
     if model is not None: # if model is passed in directly, use it
         print("Using passed in model")
         model.summary()
@@ -88,9 +88,19 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     print("-----------------------------------")
     print_dict(config)
     print("-----------------------------------")
-    hls_model = hls4ml.converters.convert_from_keras_model(
-        model, hls_config=config, output_dir=hls_dir, part=part, backend=hls4ml_backend
-    )
+    if conv:
+        cfg_q = hls4ml.converters.create_config(backend=hls4ml_backend)
+        cfg_q['IOType'] = 'io_stream'  # Must set this if using CNNs!
+        cfg_q['HLSConfig'] = config
+        cfg_q['KerasModel'] = model
+        cfg_q['OutputDir'] = hls_dir
+        cfg_q['Part'] = part
+
+        hls_model = hls4ml.converters.keras_to_hls(cfg_q)
+    else:
+        hls_model = hls4ml.converters.convert_from_keras_model(
+            model, hls_config=config, output_dir=hls_dir, part=part, backend=hls4ml_backend
+        )
 
     print("compile hls model")
     hls_model.write()
