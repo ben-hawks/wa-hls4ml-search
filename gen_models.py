@@ -54,7 +54,7 @@ class Model_Generator:
             hyper_params = {'size': layer_size, 'activation': activation, 'use_bias': use_bias,
                             'dropout': dropout, 'dropout_rate': self.params['dropout_rate']}
         elif layer_type in self.conv_layers:
-            out_filters = clip_base_2(random.randint(3, 256))
+            out_filters = clip_base_2(random.randint(self.params['conv_filters_lb'], self.params['conv_filters_ub']))
             flatten = (random.random() < self.params['flatten_chance']) or \
                       (self.params['last_layer_shape'][0] < self.params['conv_flatten_limit'] or
                        self.params['last_layer_shape'][1] < self.params['conv_flatten_limit'])
@@ -75,15 +75,15 @@ class Model_Generator:
                             'flatten': flatten, 'activation': activation, 'use_bias': use_bias,
                             'pooling': pooling, 'padding': padding, 'stride': (stride, stride)}
         elif layer_type in self.time_layers:
-            out_filters = clip_base_2(random.randint(3, 256))
+            out_filters = clip_base_2(random.randint(self.params['conv_filters_lb'], self.params['conv_filters_ub']))
             kernel_size = random.randint(self.params['conv_kernel_lb'], self.params['conv_kernel_ub'])
             flatten = random.random() < self.params['flatten_chance']
             stride = random.randint(self.params['conv_stride_lb'], self.params['conv_stride_ub'])
             padding = random.choices(['same', 'valid'], weights=self.params['probs']['padding'], k=1)[0]
-
+            pooling = random.random() < self.params['pooling_chance']
             hyper_params = {'out_filters': out_filters, 'kernel': kernel_size,
                             'flatten': flatten, 'activation': activation, 'use_bias': use_bias,
-                            'padding': padding, 'stride': stride}
+                            'pooling': pooling, 'padding': padding, 'stride': stride}
         return hyper_params
 
     def next_layer(self, last_layer: Layer, input_layer: Layer = None, pre_config: dict = None) -> Layer:
@@ -144,7 +144,9 @@ class Model_Generator:
                     layer_choice.append(QActivation(activation=hyper_params['activation'])(layer_choice[-1]))
 
                 if hyper_params['pooling']:
-                    layer_choice.append(QAveragePooling2D()(layer_choice[-1]))
+                    pooling = random.choices([keras.layers.MaxPooling2D, keras.layers.AveragePooling2D],
+                                             weights=self.params['probs']['pooling'], k=1)[0]
+                    layer_choice.append(pooling((2, 2))(layer_choice[-1]))
             else:
                 layer_choice = [layer_type(hyper_params['out_filters'], hyper_params['kernel'], strides=hyper_params['stride'],
                                            use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
@@ -186,6 +188,10 @@ class Model_Generator:
                 
                 if "no_activation" not in hyper_params['activation']:
                     layer_choice.append(QActivation(activation=hyper_params['activation'])(layer_choice[-1]))
+                if hyper_params['pooling']:
+                    pooling = random.choices([keras.layers.MaxPooling1D, keras.layers.AveragePooling1D],
+                                             weights=self.params['probs']['pooling'], k=1)[0]
+                    layer_choice.append(pooling(2)(layer_choice[-1]))
             else:
                 if layer_type == LSTM:
                     raise NotImplemented
@@ -196,6 +202,10 @@ class Model_Generator:
                     
                 if "no_activation" not in hyper_params['activation']:
                     layer_choice.append(Activation(activation=hyper_params['activation'])(layer_choice[-1]))
+                if hyper_params['pooling']:
+                    pooling = random.choices([keras.layers.MaxPooling1D, keras.layers.AveragePooling1D],
+                                             weights=self.params['probs']['pooling'], k=1)[0]
+                    layer_choice.append(pooling(2)(layer_choice[-1]))
             self.name = 'time'
             if hyper_params['flatten'] and input_layer is None:
                 layer_choice.append(Flatten()(last_layer))
@@ -378,50 +388,52 @@ ray.init(num_cpus=os.cpu_count(), log_to_driver=False)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 @ray.remote(max_retries=10, retry_exceptions=True)
-def generate_model(bitwidth, mg, params):
+def generate_model(bitwidth):
     try:
-        model = mg.gen_network(add_params=params,
-                            total_layers=random.randint(3, 10), save_file=None)
+        mg = Model_Generator()
+        model = mg.gen_network(add_params={'dense_lb': 8, 'dense_ub': 64, 'conv_filters_ub': 16,
+                                           'conv_init_size_lb': 8, 'conv_init_size_ub': 64,
+                                           'q_chance': 1, 'flatten_chance': .1, 'pooling_chance': .3,
+                                           'weight_bit_width': bitwidth, 'weight_int_width': 1,
+                                           'activ_bit_width': bitwidth, 'activ_int_width': 1,
+                                           'probs': {'activations': [],
+                                                     'dense_layers': [.25], 'conv_layers': [0, 0, 0], 'time_layers': [0.75],
+                                                     'start_layers': [1, 0, 0, 0, 0],
+                                                     'padding': [0.5, 0.5],  # border, off
+                                                     'pooling': [0.2, 0.2]  # max, avg
+                                                     }
+                                           },
+                               total_layers=random.randint(3, 7), save_file=None)
         return model.name, model.to_json()
     except Exception as e:
-        mg.failed_models += 1
         raise(e)
 
-def threaded_exec(batch_range: int, batch_size: int, params: dict = {}):
+def threaded_exec(batch_range: int, batch_size: int):
     succeeded = 0
 
     assert batch_range > 0
     assert batch_size > 0
 
     for batch_i in tqdm(range(batch_range), desc="Batch Count:"):
-        models = []
-        futures = [generate_model.remote(2 ** random.randint(2, 4), Model_Generator(), params) for _ in range(batch_size)]
-        for future in ray.get(futures):
+        model_dict = {}
+        futures = [generate_model.remote(2 ** random.randint(2, 4)) for _ in range(batch_size)]
+        for future in tqdm(ray.get(futures), leave=False, desc="Model Count:"):
             model_name, model_json = future
             if model_name and model_json:
-                models.append(model_json)
-                succeeded +=1
-        json_models = json.dumps(models, indent=None, separators=(',', '\n'))
-        with open(f"conv2d_batch_{batch_i}.json", "w") as file:
+                # model_name might have dupes because of multithreading, so make a new name for each model
+                model_dict.update({f"conv1d_{succeeded}": model_json})  # Store the model with its name
+                succeeded += 1
+        json_models = json.dumps(model_dict)
+        with open(f"conv1d_models/conv1d_batch_{batch_i}.json", "w") as file:
             file.write(json_models)
-        print(succeeded)
-        print(len(models))
+
 
 if __name__ == '__main__':
-    # threaded_exec(batch_range, batch_size)
+    batch_range = 668
+    batch_size = 50
+    threaded_exec(batch_range, batch_size)
     
     # left this here as an example but everything in __name__ can be deleted
     def callback(mg: Model_Generator, layers: list):
         if mg.layer_depth > 1:
             mg.params['flatten_chance'] = 1
-
-    mg = Model_Generator()
-    params = {
-        'dense_lb': 32, 'dense_ub': 64, 
-        'conv_filters_ub': 16, 
-        'q_chance': 1,
-        'probs': {'start_layers': [0, 0.33, 0, 0.33, 0.33]},
-        'flatten_chance': 0
-        }
-    model = mg.gen_network(add_params=params, total_layers=7, callback=callback)
-    model.summary()
