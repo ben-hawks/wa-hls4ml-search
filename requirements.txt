@@ -1,0 +1,4 @@
+tensorflow
+qkeras
+pyparsing
+tf_keras
