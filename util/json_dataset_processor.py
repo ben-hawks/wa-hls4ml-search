@@ -263,6 +263,58 @@ def process_json_entry(model, hls_config, filename, part="xcu250-figd2104-2L-e")
             processed_data = processed_entry
         except Exception as e:
             print(f"Error processing {filename}: {e}")
+            try:
+                print("Returning skeleton data with HLS report for failed model...")
+                model_config = config_from_keras_model(model, reuse_factor)
+                latency_report = {
+                    'cycles_min': json_data['CSynthesisReport']['BestLatency'],
+                    'cycles_max': json_data['CSynthesisReport']['WorstLatency'],
+                    'target_clock': json_data['CSynthesisReport']['TargetClockPeriod'],
+                    'estimated_clock': json_data['CSynthesisReport']['EstimatedClockPeriod'],
+                }
+                hls_resource_report = {
+                    'bram': json_data['CSynthesisReport']['BRAM_18K'],
+                    'dsp': json_data['CSynthesisReport']['DSP'],
+                    'ff': json_data['CSynthesisReport']['FF'],
+                    'lut': json_data['CSynthesisReport']['LUT'],
+                    'uram': json_data['CSynthesisReport']['URAM'],
+                }
+                processed_entry = {
+                    'meta_data': {
+                        'uuid': model_uuid,
+                        'model_name': model_name,
+                        'artifacts_file': model_uuid + ".tar.gz"
+                    },
+                    'model_config': model_config,
+                    'hls_config': hls_config,
+                    'resource_report': {},
+                    'hls_resource_report': hls_resource_report,
+                    'latency_report': latency_report,
+                    'target_part': part,
+                    'vivado_version':tool_version if tool_version is not None else "2020.1",
+                    'hls4ml_version': hls4ml.__version__,
+                }
+                processed_data = processed_entry
+            except Exception as e:
+                print(f"Error processing {filename}, likely HLS failure: {e}")
+                print("Returning skeleton data for failed model...")
+                model_config = config_from_keras_model(model, reuse_factor)
+                processed_entry = {
+                    'meta_data': {
+                        'uuid': model_uuid,
+                        'model_name': model_name,
+                        'artifacts_file': model_uuid + ".tar.gz"
+                    },
+                    'model_config': model_config,
+                    'hls_config': hls_config,
+                    'resource_report': {},
+                    'hls_resource_report': {},
+                    'latency_report': {},
+                    'target_part': part,
+                    'vivado_version':tool_version if tool_version is not None else "2020.1",
+                    'hls4ml_version': hls4ml.__version__,
+                }
+                processed_data = processed_entry
     return processed_data, model_uuid
 
 if __name__ == "__main__":
