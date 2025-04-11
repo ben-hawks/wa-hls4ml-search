@@ -1,7 +1,7 @@
 import os
 import sys
 import tarfile
-
+import shutil
 from tensorflow.keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
 import hls4ml
@@ -107,12 +107,13 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
 
 
     #hls_model.compile()
-    print(name, " - vsynth enabled: ", vsynth)
+    print(f"{name}_rf{rf} - vsynth enabled: {vsynth}")
     hls_model.build(csim=False, vsynth=vsynth, cosim=False, export=False)
 
     # read the report and just save that?
+    print("Reading report...")
     report_json = hls4ml.report.vivado_report.parse_vivado_report(hls_dir)
-    hls4ml.report.read_vivado_report(hls_dir)
+    #hls4ml.report.read_vivado_report(hls_dir)
 
     with open(json_name, "w") as outfile:
         json.dump(report_json, outfile)
@@ -124,7 +125,8 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     make_tarfile(output + "/projects/" + model_uuid + ".tar.gz", hls_dir)
 
     print("Finished running hls4ml synthesis for ", name, " with RF of ", rf)
-
+    print("Deleting HLS Project Directory: ", hls_dir)
+    shutil.rmtree(hls_dir)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--name', type=str, default='model')

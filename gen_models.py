@@ -397,8 +397,19 @@ def generate_model(bitwidth):
                                            'weight_bit_width': bitwidth, 'weight_int_width': 1,
                                            'activ_bit_width': bitwidth, 'activ_int_width': 1,
                                            'probs': {'activations': [],
-                                                     'dense_layers': [.25], 'conv_layers': [0, 0, 0], 'time_layers': [0.75],
-                                                     'start_layers': [1, 0, 0, 0, 0],
+                                                     # Must set probabilities for the layers in start_layers as well!
+                                                    # conv layers
+                                                    # q_chance = 0 [Conv2D]
+                                                    # q_chance < 1 [Conv2D, QConv2D, QSeparableConv2D, QDepthwiseConv2D]
+                                                    # q_chance = 1 [QConv2D, QSeparableConv2D, QDepthwiseConv2D]
+                                                    # Dense/Time are either qkeras or not in line with q_chance,
+                                                    # 1 element if 0/1, else 2 elements
+                                                     'dense_layers': [.25], 'conv_layers': [0.75, 0, 0], 'time_layers': [0],
+                                                     # start layers
+                                                     #q_chance = 0 [Conv1D, Conv2D, Dense]
+                                                     #q_chance < 1 [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense, QSeparableConv2D, QDepthwiseConv2D]
+                                                     #q_chance = 1 [QConv1D, QConv2D, QDense, QSeparableConv2D, QDepthwiseConv2D]
+                                                     'start_layers': [0, 1, 0, 0, 0],
                                                      'padding': [0.5, 0.5],  # border, off
                                                      'pooling': [0.2, 0.2]  # max, avg
                                                      }
@@ -417,14 +428,14 @@ def threaded_exec(batch_range: int, batch_size: int):
     for batch_i in tqdm(range(batch_range), desc="Batch Count:"):
         model_dict = {}
         futures = [generate_model.remote(2 ** random.randint(2, 4)) for _ in range(batch_size)]
-        for future in tqdm(ray.get(futures), leave=False, desc="Model Count:"):
+        for future in ray.get(futures):
             model_name, model_json = future
             if model_name and model_json:
                 # model_name might have dupes because of multithreading, so make a new name for each model
-                model_dict.update({f"conv1d_{succeeded}": model_json})  # Store the model with its name
+                model_dict.update({f"conv2d_{succeeded}": model_json})  # Store the model with its name
                 succeeded += 1
         json_models = json.dumps(model_dict)
-        with open(f"conv1d_models/conv1d_batch_{batch_i}.json", "w") as file:
+        with open(f"conv2d_models/conv2d_batch_{batch_i}.json", "w") as file:
             file.write(json_models)
 
 
@@ -433,7 +444,7 @@ if __name__ == '__main__':
     batch_size = 50
     threaded_exec(batch_range, batch_size)
     
-    # left this here as an example but everything in __name__ can be deleted
+    # left this here as an example but everything beyond this line in __name__ can be deleted
     def callback(mg: Model_Generator, layers: list):
         if mg.layer_depth > 1:
             mg.params['flatten_chance'] = 1
