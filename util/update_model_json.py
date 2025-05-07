@@ -56,7 +56,8 @@ def process_json_directory(json_dir, output_dir=None):
 
             # Extract the keras_model.keras file
             model_filename = filename.replace(f"_processed.json", "") + "/keras_model.keras"
-            extracted_model_path = extract_target_file(artifacts_file, model_filename)
+            artifacts_path = os.path.join(json_dir, "projects", artifacts_file)
+            extracted_model_path = extract_target_file(artifacts_path, model_filename)
             if not extracted_model_path:
                 print(f"Skipping {filename}: keras_model.keras not found in {artifacts_file}.")
                 pbar.update(1)
