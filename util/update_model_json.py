@@ -4,12 +4,12 @@ import json
 import tarfile
 import shutil
 import argparse
+import gzip
+import subprocess
+from concurrent.futures import ProcessPoolExecutor
 from keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
 from keras_parser import config_from_keras_model
-import gzip
-import subprocess
-
 from tqdm import tqdm
 
 def extract_target_file(artifacts_path, target_filename, extract_to="./"):
@@ -24,91 +24,71 @@ def extract_target_file(artifacts_path, target_filename, extract_to="./"):
         print(f"Error extracting {artifacts_path}: {e}")
     return None
 
-def process_json_directory(json_dir, output_dir=None):
+def process_single_json_file(args):
+    json_path, json_dir, keras_models_dir, output_dir = args
+    try:
+        with open(json_path, 'r') as json_file:
+            data = json.load(json_file)
+
+        filename = os.path.basename(json_path)
+        reuse_factor = int(filename.split("_rf")[1].split("_")[0])
+
+        artifacts_file = data.get("meta_data", {}).get("artifacts_file")
+        if not artifacts_file:
+            return f"Skipping {filename}: No artifacts_file found in meta_data."
+
+        base_model_filename = filename.replace(f"_processed.json", "")
+        model_filenames = [f"{base_model_filename}/keras_model.keras", f"{base_model_filename}/keras_model.h5"]
+        extracted_model_path = None
+        artifacts_path = os.path.join(json_dir, "projects", artifacts_file)
+
+        for model_filename in model_filenames:
+            extracted_model_path = extract_target_file(artifacts_path, model_filename)
+            if extracted_model_path:
+                break
+
+        if not extracted_model_path:
+            return f"Skipping {filename}: keras_model file not found in {artifacts_file}."
+
+        new_model_name = filename.replace(f"_rf{reuse_factor}_processed.json", os.path.splitext(extracted_model_path)[1])
+        new_model_path = os.path.join(keras_models_dir, new_model_name)
+        if not os.path.exists(new_model_path):
+            shutil.move(extracted_model_path, new_model_path)
+
+        co = {}
+        _add_supported_quantized_objects(co)
+        model = load_model(new_model_path, custom_objects=co)
+
+        updated_model_config = config_from_keras_model(model, reuse_factor)
+        data["model_config"] = updated_model_config
+
+        if output_dir:
+            updated_json_path = os.path.join(output_dir, filename)
+            with open(updated_json_path, 'w') as json_file:
+                json.dump(data, json_file, indent=4)
+        else:
+            with open(json_path, 'w') as json_file:
+                json.dump(data, json_file, indent=4)
+
+        return f"Processed {filename} successfully."
+    except Exception as e:
+        return f"Error processing {os.path.basename(json_path)}: {e}"
+
+def process_json_directory(json_dir, output_dir=None, max_cores=None):
     keras_models_dir = os.path.join(json_dir, "keras_models")
     os.makedirs(keras_models_dir, exist_ok=True)
 
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
-    json_files = [f for f in os.listdir(json_dir) if f.endswith(".json")]
+    json_files = [os.path.join(json_dir, f) for f in os.listdir(json_dir) if f.endswith(".json")]
 
-    with tqdm(total=len(json_files), desc="Processing JSON files", unit="file") as pbar:
-        for filename in json_files:
-            json_path = os.path.join(json_dir, filename)
-            with open(json_path, 'r') as json_file:
-                data = json.load(json_file)
+    with ProcessPoolExecutor(max_workers=max_cores) as executor:
+        args = [(json_path, json_dir, keras_models_dir, output_dir) for json_path in json_files]
+        results = list(tqdm(executor.map(process_single_json_file, args), total=len(json_files), desc="Processing JSON files", unit="file"))
 
-            # Get the reuse factor from the filename
-            try:
-                reuse_factor = int(filename.split("_rf")[1].split("_")[0])
-            except (IndexError, ValueError):
-                print(f"Skipping {filename}: Could not extract reuse factor from filename.")
-                pbar.update(1)
-                continue
-
-            # Get the artifacts_file entry
-            artifacts_file = data.get("meta_data", {}).get("artifacts_file")
-            if not artifacts_file:
-                print(f"Skipping {filename}: No artifacts_file found in meta_data.")
-                pbar.update(1)
-                continue
-
-            # Extract the keras_model.keras file
-            model_filename = filename.replace(f"_processed.json", "") + "/keras_model.keras"
-            artifacts_path = os.path.join(json_dir, "projects", artifacts_file)
-            extracted_model_path = extract_target_file(artifacts_path, model_filename)
-            if not extracted_model_path:
-                print(f"Skipping {filename}: keras_model.keras not found in {artifacts_file}.")
-                pbar.update(1)
-                continue
-
-
-            # Save the extracted keras_model.keras to the keras_models directory
-            new_model_name = filename.replace(f"_rf{reuse_factor}_processed.json", ".keras")
-            new_model_path = os.path.join(keras_models_dir, new_model_name)
-            if not os.path.exists(new_model_path):
-                try:
-                    shutil.move(extracted_model_path, new_model_path)
-                except Exception as e:
-                    print(f"Error saving model to {new_model_path}: {e}")
-                    pbar.update(1)
-                    continue
-
-
-            # Load the model with qkeras custom_objects
-            try:
-                co = {}
-                _add_supported_quantized_objects(co)
-                model = load_model(new_model_path, custom_objects=co)
-            except Exception as e:
-                print(f"Error loading model {new_model_path}: {e}")
-                pbar.update(1)
-                continue
-
-            # Parse the model to get updated model_config
-            try:
-                updated_model_config = config_from_keras_model(model, reuse_factor)
-            except Exception as e:
-                print(f"Error parsing model {new_model_path}: {e}")
-                pbar.update(1)
-                continue
-
-            # Replace the model_config in the JSON file
-            data["model_config"] = updated_model_config
-
-            # Save the updated JSON file
-            if output_dir:
-                updated_json_path = os.path.join(output_dir, filename)
-                with open(updated_json_path, 'w') as json_file:
-                    json.dump(data, json_file, indent=4)
-                #print(f"Processed and saved updated {filename} to {output_dir}.")
-            else:
-                with open(json_path, 'w') as json_file:
-                    json.dump(data, json_file, indent=4)
-                #print(f"Processed and updated {filename}.")
-
-            pbar.update(1)
+    for result in results:
+        print(result)
 
 def tar_and_gzip_directory(source_dir, tar_output_path, use_pigz=False):
     if use_pigz:
@@ -131,6 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("json_directory", help="Path to the directory containing JSON files.")
     parser.add_argument("--output-dir", help="Directory to save updated JSON files instead of overwriting.")
     parser.add_argument("--tar-output", help="Path to save the tarred and gzipped output directory.")
+    parser.add_argument("--max-cores", type=int, help="Maximum number of CPU cores to use for parallel processing.")
 
     args = parser.parse_args()
 
@@ -138,7 +119,9 @@ if __name__ == "__main__":
         print(f"Error: {args.json_directory} is not a valid directory.")
         sys.exit(1)
 
-    process_json_directory(args.json_directory, args.output_dir)
+    process_json_directory(args.json_directory, args.output_dir, args.max_cores)
 
     if args.output_dir and args.tar_output:
         tar_and_gzip_directory(args.output_dir, args.tar_output)
+
+
