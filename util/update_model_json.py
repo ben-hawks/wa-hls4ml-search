@@ -74,8 +74,7 @@ def process_json_directory(json_dir, output_dir=None):
                     print(f"Error saving model to {new_model_path}: {e}")
                     pbar.update(1)
                     continue
-            else:
-                print(f"Model {new_model_name} already exists in {keras_models_dir}. Skipping save.")
+
 
             # Load the model with qkeras custom_objects
             try:
@@ -103,11 +102,11 @@ def process_json_directory(json_dir, output_dir=None):
                 updated_json_path = os.path.join(output_dir, filename)
                 with open(updated_json_path, 'w') as json_file:
                     json.dump(data, json_file, indent=4)
-                print(f"Processed and saved updated {filename} to {output_dir}.")
+                #print(f"Processed and saved updated {filename} to {output_dir}.")
             else:
                 with open(json_path, 'w') as json_file:
                     json.dump(data, json_file, indent=4)
-                print(f"Processed and updated {filename}.")
+                #print(f"Processed and updated {filename}.")
 
             pbar.update(1)
 
