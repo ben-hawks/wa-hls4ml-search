@@ -12,6 +12,18 @@ import subprocess
 
 from tqdm import tqdm
 
+def extract_target_file(artifacts_path, target_filename, extract_to="./"):
+    try:
+        with tarfile.open(artifacts_path, "r:gz") as tar:
+            member = tar.getmember(target_filename)
+            tar.extract(member, path=extract_to)
+            return os.path.join(extract_to, member.name)
+    except KeyError:
+        print(f"Error: {target_filename} not found in {artifacts_path}.")
+    except Exception as e:
+        print(f"Error extracting {artifacts_path}: {e}")
+    return None
+
 def process_json_directory(json_dir, output_dir=None):
     keras_models_dir = os.path.join(json_dir, "keras_models")
     os.makedirs(keras_models_dir, exist_ok=True)
@@ -43,26 +55,13 @@ def process_json_directory(json_dir, output_dir=None):
                 continue
 
             # Extract the keras_model.keras file
-            artifacts_path = os.path.join(json_dir, "projects", artifacts_file)
-            model_filename = os.path.join(filename.replace(f"_processed.json", ""), "keras_model.keras")
-            extracted_model_path = None
-
-            try:
-                with tarfile.open(artifacts_path, "r:gz") as tar:
-                    for member in tar.getmembers():
-                        if member.name.endswith(model_filename):
-                            tar.extract(member, path="./")
-                            extracted_model_path = os.path.join("./", member.name)
-                            break
-            except Exception as e:
-                print(f"Error extracting {artifacts_path}: {e}")
-                pbar.update(1)
-                continue
-
+            model_filename = filename.replace(f"_processed.json", "") + "/keras_model.keras"
+            extracted_model_path = extract_target_file(artifacts_file, model_filename)
             if not extracted_model_path:
                 print(f"Skipping {filename}: keras_model.keras not found in {artifacts_file}.")
                 pbar.update(1)
                 continue
+
 
             # Save the extracted keras_model.keras to the keras_models directory
             new_model_name = filename.replace(f"_rf{reuse_factor}_processed.json", ".keras")
