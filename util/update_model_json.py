@@ -10,6 +10,8 @@ from keras_parser import config_from_keras_model
 import gzip
 import subprocess
 
+from tqdm import tqdm
+
 def process_json_directory(json_dir, output_dir=None):
     keras_models_dir = os.path.join(json_dir, "keras_models")
     os.makedirs(keras_models_dir, exist_ok=True)
@@ -17,8 +19,10 @@ def process_json_directory(json_dir, output_dir=None):
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
-    for filename in os.listdir(json_dir):
-        if filename.endswith(".json"):
+    json_files = [f for f in os.listdir(json_dir) if f.endswith(".json")]
+
+    with tqdm(total=len(json_files), desc="Processing JSON files", unit="file") as pbar:
+        for filename in json_files:
             json_path = os.path.join(json_dir, filename)
             with open(json_path, 'r') as json_file:
                 data = json.load(json_file)
@@ -28,12 +32,14 @@ def process_json_directory(json_dir, output_dir=None):
                 reuse_factor = int(filename.split("_rf")[1].split("_")[0])
             except (IndexError, ValueError):
                 print(f"Skipping {filename}: Could not extract reuse factor from filename.")
+                pbar.update(1)
                 continue
 
             # Get the artifacts_file entry
             artifacts_file = data.get("meta_data", {}).get("artifacts_file")
             if not artifacts_file:
                 print(f"Skipping {filename}: No artifacts_file found in meta_data.")
+                pbar.update(1)
                 continue
 
             # Extract the keras_model.keras file
@@ -50,10 +56,12 @@ def process_json_directory(json_dir, output_dir=None):
                             break
             except Exception as e:
                 print(f"Error extracting {artifacts_path}: {e}")
+                pbar.update(1)
                 continue
 
             if not extracted_model_path:
                 print(f"Skipping {filename}: keras_model.keras not found in {artifacts_file}.")
+                pbar.update(1)
                 continue
 
             # Save the extracted keras_model.keras to the keras_models directory
@@ -64,6 +72,7 @@ def process_json_directory(json_dir, output_dir=None):
                     shutil.move(extracted_model_path, new_model_path)
                 except Exception as e:
                     print(f"Error saving model to {new_model_path}: {e}")
+                    pbar.update(1)
                     continue
             else:
                 print(f"Model {new_model_name} already exists in {keras_models_dir}. Skipping save.")
@@ -75,6 +84,7 @@ def process_json_directory(json_dir, output_dir=None):
                 model = load_model(new_model_path, custom_objects=co)
             except Exception as e:
                 print(f"Error loading model {new_model_path}: {e}")
+                pbar.update(1)
                 continue
 
             # Parse the model to get updated model_config
@@ -82,6 +92,7 @@ def process_json_directory(json_dir, output_dir=None):
                 updated_model_config = config_from_keras_model(model, reuse_factor)
             except Exception as e:
                 print(f"Error parsing model {new_model_path}: {e}")
+                pbar.update(1)
                 continue
 
             # Replace the model_config in the JSON file
@@ -97,6 +108,8 @@ def process_json_directory(json_dir, output_dir=None):
                 with open(json_path, 'w') as json_file:
                     json.dump(data, json_file, indent=4)
                 print(f"Processed and updated {filename}.")
+
+            pbar.update(1)
 
 def tar_and_gzip_directory(source_dir, tar_output_path, use_pigz=False):
     if use_pigz:
