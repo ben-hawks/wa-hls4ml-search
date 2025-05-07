@@ -154,7 +154,7 @@ def config_from_keras_model(model, reuse_factor):
             layer_dict["dropout_rate"] = layer_config["rate"]
 
         if "activation" in layer_config and layer_config["activation"] != "linear":
-            if class_name == "Activation":
+            if class_name in ["Activation", "QActivation"]:
                 layer_dict["activation"] = layer_config["activation"]
             else:
                 nested_activation = True
