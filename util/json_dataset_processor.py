@@ -80,6 +80,8 @@ def process_json_files(input_dir, output_file, model_dir, filelist=None):
                     'cycles_max': json_data['CSynthesisReport']['WorstLatency'],
                     'target_clock': json_data['CSynthesisReport']['TargetClockPeriod'],
                     'estimated_clock': json_data['CSynthesisReport']['EstimatedClockPeriod'],
+                    'interval_max': json_data['CSynthesisReport']['IntervalMax'],
+                    'interval_min': json_data['CSynthesisReport']['IntervalMin']
                 }
                 resource_report = {
                     'bram': json_data['VivadoSynthReport']['BRAM_18K'],
@@ -164,6 +166,8 @@ def process_json_files_filelist(input_dir, output_file, filelist_path):
                     'cycles_max': json_data['CSynthesisReport']['WorstLatency'],
                     'target_clock': json_data['CSynthesisReport']['TargetClockPeriod'],
                     'estimated_clock': json_data['CSynthesisReport']['EstimatedClockPeriod'],
+                    'interval_max': json_data['CSynthesisReport']['IntervalMax'],
+                    'interval_min': json_data['CSynthesisReport']['IntervalMin']
                 }
                 resource_report = {
                     'bram': json_data['VivadoSynthReport']['BRAM_18K'],
@@ -233,6 +237,8 @@ def process_json_entry(model, hls_config, filename, part="xcu250-figd2104-2L-e")
                 'cycles_max': json_data['CSynthesisReport']['WorstLatency'],
                 'target_clock': json_data['CSynthesisReport']['TargetClockPeriod'],
                 'estimated_clock': json_data['CSynthesisReport']['EstimatedClockPeriod'],
+                'interval_max': json_data['CSynthesisReport']['IntervalMax'],
+                'interval_min': json_data['CSynthesisReport']['IntervalMin']
             }
             resource_report = {
                 'bram': json_data['VivadoSynthReport']['BRAM_18K'],
@@ -271,6 +277,8 @@ def process_json_entry(model, hls_config, filename, part="xcu250-figd2104-2L-e")
                     'cycles_max': json_data['CSynthesisReport']['WorstLatency'],
                     'target_clock': json_data['CSynthesisReport']['TargetClockPeriod'],
                     'estimated_clock': json_data['CSynthesisReport']['EstimatedClockPeriod'],
+                    'interval_max': json_data['CSynthesisReport']['IntervalMax'],
+                    'interval_min': json_data['CSynthesisReport']['IntervalMin']
                 }
                 hls_resource_report = {
                     'bram': json_data['CSynthesisReport']['BRAM_18K'],

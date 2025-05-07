@@ -29,7 +29,8 @@ def suppress_stdout():
         finally:
             sys.stdout = old_stdout
 
-clip_base_2 = lambda x: 2 ** round(np.log2(x))
+#clip_base_2 = lambda x: 2 ** round(np.log2(x))
+clip_base_2 = lambda x: 2 ** max(1, round(np.log2(max(1, x))))
 
 class Model_Generator:
     failed_models = 0
@@ -44,6 +45,10 @@ class Model_Generator:
         arguments:
         layer_type -- takes in the selection of layer so it can specify
         """
+        # Ensure weights match the population
+        #if len(self.params['probs']['activations']) != len(self.activations):
+        #    self.params['probs']['activations'] = [1 / len(self.activations)] * len(self.activations)
+        print(self.activations)
         activation = random.choices(self.activations, weights=self.params['probs']['activations'], k=1)[0]
         use_bias = random.random() < self.params['bias_rate']
 
@@ -58,16 +63,16 @@ class Model_Generator:
             flatten = (random.random() < self.params['flatten_chance']) or \
                       (self.params['last_layer_shape'][0] < self.params['conv_flatten_limit'] or
                        self.params['last_layer_shape'][1] < self.params['conv_flatten_limit'])
-            
+
             pooling = random.random() < self.params['pooling_chance']
             padding = random.choices(['same', 'valid'], weights=self.params['probs']['padding'], k=1)[0]
             kernel_size = min(random.randint(self.params['conv_kernel_lb'], self.params['conv_kernel_ub']),
                               *self.params['last_layer_shape'][:-1])
-            
+
             stride = random.randint(self.params['conv_stride_lb'], self.params['conv_stride_ub'])
             row_dim_pred = (self.params['last_layer_shape'][0] - kernel_size + 2 * int(padding == 'valid')) / stride + 1
             col_dim_pred = (self.params['last_layer_shape'][1] - kernel_size + 2 * int(padding == 'valid')) / stride + 1
-            
+
             if row_dim_pred <= 0 or col_dim_pred <= 0:
                 kernel_size, stride, padding = 1, 1, 'same'
 
@@ -217,7 +222,7 @@ class Model_Generator:
     def gen_network(self, total_layers: int = 3,
                     add_params: dict = {}, callback=None,
                     save_file: typing.IO = None) -> Model:
-        
+
         """
         Generates interconnected network based on defaults or extra params, returns Model
 
@@ -252,16 +257,14 @@ class Model_Generator:
             'flatten_chance': .5,
             'pooling_chance': .5,
             'bias_rate': .5
-            }
-        
-        self.params.update(add_params)
-        # wipe either all the qkeras or keras layers depending on what mode we're in
-        self.filter_q(self.params['q_chance'], self.params)
-        
-        init_layer = random.choices(self.start_layers, weights=self.params['probs']['start_layers'], k=1)[0]
-        layer_units = 0
+        }
 
-        # gen size based off start layer (right now is dense so can manipulate first selection)
+        self.params.update(add_params)
+        self.filter_q(self.params['q_chance'], self.params)
+
+        init_layer = random.choices(self.start_layers, weights=self.params['probs']['start_layers'], k=1)[0]
+
+        # Generate input shape based on the initial layer type
         if init_layer in self.dense_layers:
             input_shape = (clip_base_2(random.randint(self.params['dense_lb'], self.params['dense_ub'])),)
         elif init_layer in self.conv_layers:
@@ -272,10 +275,15 @@ class Model_Generator:
         elif init_layer in self.time_layers:
             input_shape = (clip_base_2(random.randint(self.params['time_lb'], self.params['time_ub'])),
                            random.randint(self.params['dense_lb'], self.params['dense_ub']))
-        try:
-            layers = [Input(shape=input_shape)]
+        else:
+            raise ValueError("Invalid initial layer type")
 
-            # create the initial layer to go off of
+        # Validate input_shape
+        if not input_shape or not all(isinstance(dim, int) and dim > 0 for dim in input_shape):
+            raise ValueError(f"Invalid input shape: {input_shape}")
+
+        try:
+            layers = [Input(shape=input_shape)]  # Ensure input_shape is valid
             self.params['last_layer_shape'] = layers[0].shape[1:]
 
             if init_layer in self.dense_layers:
@@ -286,17 +294,17 @@ class Model_Generator:
                 self.name = "time"
             else:
                 raise Exception("Layer not of a valid type")
-            
+
             self.layer_depth += 1
             layers.extend(self.next_layer(init_layer, input_layer=layers[0]))
+            layer_units = 0
+
             while layer_units < total_layers:
-                # provides a callback function. Will return if any value is instructed to return from the call
                 if callback:
                     callback_output = callback(self, layers)
                     if callback_output:
                         return callback_output
-                
-                # disables dropout on last layer
+
                 if layer_units == total_layers - 2 and self.name:
                     self.params['flatten_chance'] = 1
                 if layer_units == total_layers - 1:
@@ -304,17 +312,20 @@ class Model_Generator:
 
                 layers.extend(self.next_layer(layers[-1]))
                 layer_units += 1
-        
+
             model = Model(inputs=layers[0], outputs=layers[-1])
-        
+
             if save_file:
                 save_file.write(model.to_json())
                 save_file.write("--------------")
             return model
-        
+
         except ValueError as e:
             self.failed_models += 1
             self.reset_layers()
+            if self.failed_models > 10:  # Limit recursion depth
+                raise RuntimeError("Exceeded maximum retries for generating network") from e
+            logging.error(f"Error generating network: {e}")
             return self.gen_network(total_layers=total_layers,
                                     add_params=add_params, callback=callback,
                                     save_file=save_file)
@@ -390,13 +401,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 @ray.remote(max_retries=10, retry_exceptions=True)
 def generate_model(bitwidth):
     try:
-        mg = Model_Generator()
+        mg = Model_Generator() # Latency strategy Dense jobs
         model = mg.gen_network(add_params={'dense_lb': 8, 'dense_ub': 64, 'conv_filters_ub': 16,
                                            'conv_init_size_lb': 8, 'conv_init_size_ub': 64,
                                            'q_chance': 1, 'flatten_chance': .1, 'pooling_chance': .3,
                                            'weight_bit_width': bitwidth, 'weight_int_width': 1,
                                            'activ_bit_width': bitwidth, 'activ_int_width': 1,
-                                           'probs': {'activations': [],
+                                           'activation_rate': 1,
+                                           'probs': {'activations': [.30,.30,.30,.10],
+                                                     # Activations: ["relu", "tanh", "sigmoid", "softmax"]
                                                      # Must set probabilities for the layers in start_layers as well!
                                                     # conv layers
                                                     # q_chance = 0 [Conv2D]
@@ -404,12 +417,12 @@ def generate_model(bitwidth):
                                                     # q_chance = 1 [QConv2D, QSeparableConv2D, QDepthwiseConv2D]
                                                     # Dense/Time are either qkeras or not in line with q_chance,
                                                     # 1 element if 0/1, else 2 elements
-                                                     'dense_layers': [.25], 'conv_layers': [0.75, 0, 0], 'time_layers': [0],
+                                                     'dense_layers': [1], 'conv_layers': [0, 0, 0], 'time_layers': [0],
                                                      # start layers
                                                      #q_chance = 0 [Conv1D, Conv2D, Dense]
                                                      #q_chance < 1 [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense, QSeparableConv2D, QDepthwiseConv2D]
                                                      #q_chance = 1 [QConv1D, QConv2D, QDense, QSeparableConv2D, QDepthwiseConv2D]
-                                                     'start_layers': [0, 1, 0, 0, 0],
+                                                     'start_layers': [0, 0, 1, 0, 0],
                                                      'padding': [0.5, 0.5],  # border, off
                                                      'pooling': [0.2, 0.2]  # max, avg
                                                      }
@@ -424,7 +437,6 @@ def threaded_exec(batch_range: int, batch_size: int):
 
     assert batch_range > 0
     assert batch_size > 0
-
     for batch_i in tqdm(range(batch_range), desc="Batch Count:"):
         model_dict = {}
         futures = [generate_model.remote(2 ** random.randint(2, 4)) for _ in range(batch_size)]
@@ -432,15 +444,15 @@ def threaded_exec(batch_range: int, batch_size: int):
             model_name, model_json = future
             if model_name and model_json:
                 # model_name might have dupes because of multithreading, so make a new name for each model
-                model_dict.update({f"conv2d_{succeeded}": model_json})  # Store the model with its name
+                model_dict.update({f"dense_latency_{succeeded}": model_json})  # Store the model with its name
                 succeeded += 1
         json_models = json.dumps(model_dict)
-        with open(f"conv2d_models/conv2d_batch_{batch_i}.json", "w") as file:
+        with open(f"dense_latency_models/dense_latency_batch_{batch_i}.json", "w") as file:
             file.write(json_models)
 
 
 if __name__ == '__main__':
-    batch_range = 668
+    batch_range = 334
     batch_size = 50
     threaded_exec(batch_range, batch_size)
     

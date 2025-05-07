@@ -9,7 +9,7 @@ from qkeras.utils import _add_supported_quantized_objects
 import datetime
 
 def main(args):
-    rf_step = args.rf_step-1
+    rf_step = args.rf_step
     if args.file.endswith('.csv'):
         filelist = pd.read_csv(args.file)
         #print(filelist[["model_name","model_file"]])
@@ -18,7 +18,7 @@ def main(args):
             config_str = row["config_str"]
             prec = row["prec"]
             output_loc = args.output + row["model_name"]
-            for rf in range(args.rf_lower, args.rf_upper, rf_step):
+            for rf in range(args.rf_lower, args.rf_upper+1, rf_step):
                 print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth,model_name, rf))
                 run_iter(model_name, output_loc,  rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, precision=prec, config_str=config_str, hlsproj=args.hlsproj)
     elif args.file.endswith('.json'): #hacky thing assuming json is only for conv models... fix with real arg later
