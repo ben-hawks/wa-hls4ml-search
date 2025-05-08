@@ -77,25 +77,6 @@ def process_single_json_file(args):
     except Exception as e:
         return f"Error processing {os.path.basename(json_path)}: {e}"
 
-def process_json_directory(json_dir, output_dir=None, max_cores=None, verbose=False):
-    keras_models_dir = os.path.join(json_dir, "keras_models")
-    os.makedirs(keras_models_dir, exist_ok=True)
-
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-    print("Counting JSON files...")
-    json_files = [os.path.join(json_dir, f) for f in os.listdir(json_dir) if f.endswith(".json")]
-    print(f"Found {len(json_files)} JSON files. Starting to process...")
-    with ProcessPoolExecutor(max_workers=max_cores) as executor:
-        args = [
-            (json_path, json_dir, keras_models_dir, output_dir, verbose, len(json_files), idx)
-            for idx, json_path in enumerate(json_files)
-        ]
-        results = list(tqdm(executor.map(process_single_json_file, args), total=len(json_files), desc="Processing JSON files", unit="file"))
-
-    for result in results:
-        print(result)
-
 def tar_and_gzip_directory(source_dir, tar_output_path, use_pigz=False):
     if use_pigz:
         # Use pigz for parallel compression, if available
@@ -112,13 +93,44 @@ def tar_and_gzip_directory(source_dir, tar_output_path, use_pigz=False):
 
     print(f"Directory {source_dir} has been tarred and gzipped to {tar_output_path}.")
 
+def process_json_directory(json_dir, output_dir=None, max_cores=None, verbose=False, single_threaded=False):
+    keras_models_dir = os.path.join(json_dir, "keras_models")
+    os.makedirs(keras_models_dir, exist_ok=True)
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    print("Counting JSON files...")
+    json_files = [os.path.join(json_dir, f) for f in os.listdir(json_dir) if f.endswith(".json")]
+    print(f"Found {len(json_files)} JSON files. Starting to process...")
+
+    if single_threaded:
+        # Process files sequentially
+        for idx, json_path in enumerate(json_files):
+            result = process_single_json_file(
+                (json_path, json_dir, keras_models_dir, output_dir, verbose, len(json_files), idx)
+            )
+            print(result)
+    else:
+        # Process files in parallel
+        with ProcessPoolExecutor(max_workers=max_cores) as executor:
+            args = [
+                (json_path, json_dir, keras_models_dir, output_dir, verbose, len(json_files), idx)
+                for idx, json_path in enumerate(json_files)
+            ]
+            results = list(tqdm(executor.map(process_single_json_file, args), total=len(json_files), desc="Processing JSON files", unit="file"))
+
+        for result in results:
+            print(result)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process JSON files and optionally save to a different directory.")
     parser.add_argument("json_directory", help="Path to the directory containing JSON files.")
     parser.add_argument("--output-dir", help="Directory to save updated JSON files instead of overwriting.")
     parser.add_argument("--tar-output", help="Path to save the tarred and gzipped output directory.")
-    parser.add_argument("--max-cores", type=int, help="Maximum number of CPU cores to use for parallel processing.")
+    parser.add_argument("--max-cores", type=int, help="Maximum number of CPU cores to use for parallel processing.", default=8)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output for progress monitoring.")
+    parser.add_argument("--single-threaded", action="store_true", help="Run in single-threaded mode without parallel processing.")
 
     args = parser.parse_args()
 
@@ -126,7 +138,7 @@ if __name__ == "__main__":
         print(f"Error: {args.json_directory} is not a valid directory.")
         sys.exit(1)
 
-    process_json_directory(args.json_directory, args.output_dir, args.max_cores, args.verbose)
+    process_json_directory(args.json_directory, args.output_dir, args.max_cores, args.verbose, args.single_threaded)
 
     if args.output_dir and args.tar_output:
         tar_and_gzip_directory(args.output_dir, args.tar_output)

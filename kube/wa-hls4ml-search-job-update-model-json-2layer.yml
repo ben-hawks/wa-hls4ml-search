@@ -25,10 +25,11 @@ spec:
               source /tools/Xilinx/Vitis/2023.2/settings64.sh &&
               echo "Setup Vivado, running job..." &&
               cd /output/2layer_run_vsynth_2023-2 &&
-              python /opt/repo/wa-hls4ml-search/util/update_model_json.py
+              python -u /opt/repo/wa-hls4ml-search/util/update_model_json.py
               . 
+              --single-threaded
               --output-dir ../2layer_run_vsynth_2023-2_updated
-              --tar-output ../2layer_run_vsynth_2023-2_updated.tar.gz --max-cores 16
+              --tar-output ../2layer_run_vsynth_2023-2_updated.tar.gz 
               --verbose
         volumeMounts:
         - name: xilinx-tools
