@@ -18,11 +18,9 @@ def extract_target_file(artifacts_path, target_filename, extract_to="./"):
             member = tar.getmember(target_filename)
             tar.extract(member, path=extract_to)
             return os.path.join(extract_to, member.name)
-    except KeyError:
-        print(f"Error: {target_filename} not found in {artifacts_path}.")
     except Exception as e:
-        print(f"Error extracting {artifacts_path}: {e}")
-    return None
+        #print(f"Error extracting {artifacts_path}: {e}")
+        return None
 
 def process_single_json_file(args):
     json_path, json_dir, keras_models_dir, output_dir, verbose, total_files, current_index = args
@@ -110,7 +108,7 @@ def process_json_directory(json_dir, output_dir=None, max_cores=None, verbose=Fa
             result = process_single_json_file(
                 (json_path, json_dir, keras_models_dir, output_dir, verbose, len(json_files), idx)
             )
-            print(result)
+            #print(result)
     else:
         # Process files in parallel
         with ProcessPoolExecutor(max_workers=max_cores) as executor:
@@ -120,8 +118,8 @@ def process_json_directory(json_dir, output_dir=None, max_cores=None, verbose=Fa
             ]
             results = list(tqdm(executor.map(process_single_json_file, args), total=len(json_files), desc="Processing JSON files", unit="file"))
 
-        for result in results:
-            print(result)
+        #for result in results:
+        #    print(result)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process JSON files and optionally save to a different directory.")
