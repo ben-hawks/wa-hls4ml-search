@@ -25,7 +25,7 @@ def extract_target_file(artifacts_path, target_filename, extract_to="./"):
     return None
 
 def process_single_json_file(args):
-    json_path, json_dir, keras_models_dir, output_dir = args
+    json_path, json_dir, keras_models_dir, output_dir, verbose, total_files, current_index = args
     try:
         with open(json_path, 'r') as json_file:
             data = json.load(json_file)
@@ -70,21 +70,27 @@ def process_single_json_file(args):
             with open(json_path, 'w') as json_file:
                 json.dump(data, json_file, indent=4)
 
+        if verbose:
+            print(f"Processed {current_index + 1}/{total_files}: {filename} successfully.")
+
         return f"Processed {filename} successfully."
     except Exception as e:
         return f"Error processing {os.path.basename(json_path)}: {e}"
 
-def process_json_directory(json_dir, output_dir=None, max_cores=None):
+def process_json_directory(json_dir, output_dir=None, max_cores=None, verbose=False):
     keras_models_dir = os.path.join(json_dir, "keras_models")
     os.makedirs(keras_models_dir, exist_ok=True)
 
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
-
+    print("Counting JSON files...")
     json_files = [os.path.join(json_dir, f) for f in os.listdir(json_dir) if f.endswith(".json")]
-
+    print(f"Found {len(json_files)} JSON files. Starting to process...")
     with ProcessPoolExecutor(max_workers=max_cores) as executor:
-        args = [(json_path, json_dir, keras_models_dir, output_dir) for json_path in json_files]
+        args = [
+            (json_path, json_dir, keras_models_dir, output_dir, verbose, len(json_files), idx)
+            for idx, json_path in enumerate(json_files)
+        ]
         results = list(tqdm(executor.map(process_single_json_file, args), total=len(json_files), desc="Processing JSON files", unit="file"))
 
     for result in results:
