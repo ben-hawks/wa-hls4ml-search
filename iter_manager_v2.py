@@ -19,6 +19,8 @@ def main(args):
             prec = row["prec"]
             output_loc = args.output + row["model_name"]
             for rf in range(args.rf_lower, args.rf_upper+1, rf_step):
+                if rf == 0:
+                    rf = 1 #fix to let us start at 0 to get clean steps, but still do rf=1
                 print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth,model_name, rf))
                 run_iter(model_name, output_loc,  rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, precision=prec, config_str=config_str, hlsproj=args.hlsproj)
     elif args.file.endswith('.json'): #hacky thing assuming json is only for conv models... fix with real arg later
