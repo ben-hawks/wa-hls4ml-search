@@ -38,8 +38,12 @@ def main(args):
             for model_name, model_desc in models.items():
                 model = model_from_json(model_desc, custom_objects=co)
                 for rf in range(args.rf_lower, args.rf_upper, rf_step):
+                    if rf == 0:
+                        use_rf = 1  # fix to let us start at 0 to get clean steps, but still do rf=1
+                    else:
+                        use_rf = rf
                     print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth, model_name, rf))
-                    run_iter(model_name, None, rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
+                    run_iter(model_name, None, use_rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
                              hlsproj=args.hlsproj, model = model, conv=args.conv)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
