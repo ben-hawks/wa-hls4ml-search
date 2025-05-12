@@ -27,8 +27,9 @@ spec:
               cd /output/3layer_run_vsynth_2023-2 &&
               python /opt/repo/wa-hls4ml-search/util/update_model_json.py
               . 
+              --single-threaded
               --output-dir ../3layer_run_vsynth_2023-2_updated
-              --tar-output ../3layer_run_vsynth_2023-2_updated.tar.gz --max-cores 16
+              --tar-output ../3layer_run_vsynth_2023-2_updated.tar.gz 
               --verbose
         volumeMounts:
         - name: xilinx-tools

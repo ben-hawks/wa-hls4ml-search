@@ -88,6 +88,7 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
     print("-----------------------------------")
     print_dict(config)
     print("-----------------------------------")
+    print(f'Output directory: {hls_dir}, Strategy: {strat}, Part: {part}, backend: {hls4ml_backend}')
     if conv:
         cfg_q = hls4ml.converters.create_config(backend=hls4ml_backend)
         cfg_q['IOType'] = 'io_stream'  # Must set this if using CNNs!
