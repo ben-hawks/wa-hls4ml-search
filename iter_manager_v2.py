@@ -23,9 +23,11 @@ def main(args):
             print(f'Starting run for {model_name} and precision {prec}')
             for rf in range(args.rf_lower, args.rf_upper+1, rf_step):
                 if rf == 0:
-                    rf = 1 #fix to let us start at 0 to get clean steps, but still do rf=1
+                    use_rf = 1 #fix to let us start at 0 to get clean steps, but still do rf=1
+                else:
+                    use_rf = rf
                 print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth,model_name, rf))
-                run_iter(model_name, output_loc,  rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, precision=prec, config_str=config_str, hlsproj=args.hlsproj)
+                run_iter(model_name, output_loc,  use_rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, precision=prec, config_str=config_str, hlsproj=args.hlsproj)
     elif args.file.endswith('.json'):
         print("Found JSON File, loading...")
         with open(args.file, 'r') as file:
