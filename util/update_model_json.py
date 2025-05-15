@@ -25,10 +25,16 @@ def extract_target_file(artifacts_path, target_filename, extract_to="./"):
 def process_single_json_file(args):
     json_path, json_dir, keras_models_dir, output_dir, verbose, total_files, current_index = args
     try:
+        filename = os.path.basename(json_path)
+        # Skip if output file already exists
+        if output_dir:
+            updated_json_path = os.path.join(output_dir, filename)
+            if os.path.exists(updated_json_path):
+                return f"Skipping {filename}: Already exists in output directory."
+
         with open(json_path, 'r') as json_file:
             data = json.load(json_file)
 
-        filename = os.path.basename(json_path)
         reuse_factor = int(filename.split("_rf")[1].split("_")[0])
 
         artifacts_file = data.get("meta_data", {}).get("artifacts_file")
@@ -61,7 +67,6 @@ def process_single_json_file(args):
         data["model_config"] = updated_model_config
 
         if output_dir:
-            updated_json_path = os.path.join(output_dir, filename)
             with open(updated_json_path, 'w') as json_file:
                 json.dump(data, json_file, indent=4)
         else:
@@ -74,6 +79,7 @@ def process_single_json_file(args):
         return f"Processed {filename} successfully."
     except Exception as e:
         return f"Error processing {os.path.basename(json_path)}: {e}"
+
 
 def tar_and_gzip_directory(source_dir, tar_output_path, use_pigz=False):
     if use_pigz:

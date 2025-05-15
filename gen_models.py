@@ -402,7 +402,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def generate_model(bitwidth):
     try:
         mg = Model_Generator() # Latency strategy Dense jobs
-        model = mg.gen_network(add_params={'dense_lb': 8, 'dense_ub': 64, 'conv_filters_ub': 16,
+        model = mg.gen_network(add_params={'dense_lb': 8, 'dense_ub': 128, 'conv_filters_ub': 16,
                                            'conv_init_size_lb': 8, 'conv_init_size_ub': 64,
                                            'q_chance': 1, 'flatten_chance': .1, 'pooling_chance': .3,
                                            'weight_bit_width': bitwidth, 'weight_int_width': 1,
@@ -444,10 +444,10 @@ def threaded_exec(batch_range: int, batch_size: int):
             model_name, model_json = future
             if model_name and model_json:
                 # model_name might have dupes because of multithreading, so make a new name for each model
-                model_dict.update({f"dense_latency_{succeeded}": model_json})  # Store the model with its name
+                model_dict.update({f"dense_resource_{succeeded}": model_json})  # Store the model with its name
                 succeeded += 1
         json_models = json.dumps(model_dict)
-        with open(f"dense_latency_models/dense_latency_batch_{batch_i}.json", "w") as file:
+        with open(f"dense_resource_models/dense_resource_batch_{batch_i}.json", "w") as file:
             file.write(json_models)
 
 
