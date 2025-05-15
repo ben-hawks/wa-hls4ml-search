@@ -30,7 +30,7 @@ def process_single_json_file(args):
         if output_dir:
             updated_json_path = os.path.join(output_dir, filename)
             if os.path.exists(updated_json_path):
-                return f"Skipping {filename}: Already exists in output directory."
+                return f"Skipping {current_index + 1}/{total_files}: {filename} Already exists in output directory."
 
         with open(json_path, 'r') as json_file:
             data = json.load(json_file)
@@ -39,7 +39,7 @@ def process_single_json_file(args):
 
         artifacts_file = data.get("meta_data", {}).get("artifacts_file")
         if not artifacts_file:
-            return f"Skipping {filename}: No artifacts_file found in meta_data."
+            return f"Skipping {current_index + 1}/{total_files}: {filename} No artifacts_file found in meta_data."
 
         base_model_filename = filename.replace(f"_processed.json", "")
         model_filenames = [f"{base_model_filename}/keras_model.keras", f"{base_model_filename}/keras_model.h5"]
@@ -52,7 +52,7 @@ def process_single_json_file(args):
                 break
 
         if not extracted_model_path:
-            return f"Skipping {filename}: keras_model file not found in {artifacts_file}."
+            return f"Skipping {current_index + 1}/{total_files} {filename}:  keras_model file not found in {artifacts_file}."
 
         new_model_name = filename.replace(f"_rf{reuse_factor}_processed.json", os.path.splitext(extracted_model_path)[1])
         new_model_path = os.path.join(keras_models_dir, new_model_name)
@@ -73,10 +73,7 @@ def process_single_json_file(args):
             with open(json_path, 'w') as json_file:
                 json.dump(data, json_file, indent=4)
 
-        if verbose:
-            print(f"Processed {current_index + 1}/{total_files}: {filename} successfully.")
-
-        return f"Processed {filename} successfully."
+        return f"Processed {current_index + 1}/{total_files}: {filename} successfully."
     except Exception as e:
         return f"Error processing {os.path.basename(json_path)}: {e}"
 
@@ -98,6 +95,7 @@ def tar_and_gzip_directory(source_dir, tar_output_path, use_pigz=False):
     print(f"Directory {source_dir} has been tarred and gzipped to {tar_output_path}.")
 
 def process_json_directory(json_dir, output_dir=None, max_cores=None, verbose=False, single_threaded=False):
+    print("Creating directories...")
     keras_models_dir = os.path.join(json_dir, "keras_models")
     os.makedirs(keras_models_dir, exist_ok=True)
 
@@ -109,23 +107,37 @@ def process_json_directory(json_dir, output_dir=None, max_cores=None, verbose=Fa
     print(f"Found {len(json_files)} JSON files. Starting to process...")
 
     if single_threaded:
-        # Process files sequentially
         for idx, json_path in enumerate(json_files):
             result = process_single_json_file(
                 (json_path, json_dir, keras_models_dir, output_dir, verbose, len(json_files), idx)
             )
-            #print(result)
+            if verbose:
+                print(result)
     else:
-        # Process files in parallel
         with ProcessPoolExecutor(max_workers=max_cores) as executor:
             args = [
                 (json_path, json_dir, keras_models_dir, output_dir, verbose, len(json_files), idx)
                 for idx, json_path in enumerate(json_files)
             ]
-            results = list(tqdm(executor.map(process_single_json_file, args), total=len(json_files), desc="Processing JSON files", unit="file"))
+            futures = [executor.submit(process_single_json_file, arg) for arg in args]
+            for future in futures:
+                result = future.result()
+                if verbose:
+                    print(result)
 
-        #for result in results:
-        #    print(result)
+    # Copy or create raw_reports directory
+    if output_dir:
+        src_raw_reports = os.path.join(json_dir, "raw_reports")
+        dst_raw_reports = os.path.join(output_dir, "raw_reports")
+        if os.path.exists(src_raw_reports):
+            if os.path.exists(dst_raw_reports):
+                shutil.rmtree(dst_raw_reports)
+            shutil.copytree(src_raw_reports, dst_raw_reports)
+            print(f"Copied raw_reports from {src_raw_reports} to {dst_raw_reports}")
+        else:
+            os.makedirs(dst_raw_reports, exist_ok=True)
+            print(f"Created empty raw_reports directory at {dst_raw_reports}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process JSON files and optionally save to a different directory.")
@@ -138,13 +150,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    print(f"Attempting to process JSON files in {args.json_directory}...")
+
     if not os.path.isdir(args.json_directory):
         print(f"Error: {args.json_directory} is not a valid directory.")
         sys.exit(1)
 
     process_json_directory(args.json_directory, args.output_dir, args.max_cores, args.verbose, args.single_threaded)
+    print("Processing completed.")
 
     if args.output_dir and args.tar_output:
+        print(f"Tar output path: {args.tar_output}")
         tar_and_gzip_directory(args.output_dir, args.tar_output)
 
 
