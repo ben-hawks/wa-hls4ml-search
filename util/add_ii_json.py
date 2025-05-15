@@ -47,17 +47,17 @@ def process_json_files(directory):
             _.result()  # Wait for each task to complete
 
 if __name__ == "__main__":
-    print("Processing Conv2D JSON files...")
-    directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/conv2d"
-    process_json_files(directory)
-
-    print("Processing Conv1D JSON files...")
-    directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/conv1d"
-    process_json_files(directory)
-
-    #print("Processing 2layer Dense JSON files...")
-    #directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/2layer"
+    #print("Processing Conv2D JSON files...")
+    #directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/conv2d"
     #process_json_files(directory)
+
+    #print("Processing Conv1D JSON files...")
+    #directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/conv1d"
+    #process_json_files(directory)
+
+    print("Processing 2layer Dense JSON files...")
+    directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/2layer"
+    process_json_files(directory)
 
     #print("Processing 3layer Dense JSON files...")
     #directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/3layer"

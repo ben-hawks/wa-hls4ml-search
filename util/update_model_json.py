@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print(f"Attempting to process JSON files in {args.json_directory}...")
+    print(f"Attempting to process JSON files in {args.json_directory} ...")
 
     if not os.path.isdir(args.json_directory):
         print(f"Error: {args.json_directory} is not a valid directory.")
