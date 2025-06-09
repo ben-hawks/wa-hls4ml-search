@@ -164,3 +164,6 @@ datapathraw_data.txt
 
 #HLS project on HPRC
 hlsproj
+
+# Dataset files
+dataset
