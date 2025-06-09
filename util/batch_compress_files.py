@@ -2,12 +2,13 @@ import os
 import tarfile
 import json
 import csv
+import subprocess
 from math import ceil
 from tqdm import tqdm
 import argparse
 
 
-def compress_files_from_json(input_directory, output_directory, files_per_archive, master_csv_path):
+def compress_files_from_json(input_directory, output_directory, files_per_archive, master_csv_path, use_pigz, pigz_cores):
     """
     Compress files specified in JSON files into multiple tar.gz files and update the master CSV file.
 
@@ -16,6 +17,8 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
         output_directory (str): Path to the folder where the tar.gz files will be saved.
         files_per_archive (int): Number of files to include in each tar.gz archive.
         master_csv_path (str): Path to the master CSV file to be updated.
+        use_pigz (bool): Whether to use pigz for compression.
+        pigz_cores (int): Number of cores to use with pigz.
     """
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -61,15 +64,27 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
         files_to_compress = artifact_files[start_index:end_index]
 
         archive_csv_data = []  # Temporary list to store data for this archive
+        tar_path = os.path.join(output_directory, f"archive_{i + 1}.tar")
 
-        with tarfile.open(archive_name, "w:gz") as tar:
-            for json_file, artifact_file in tqdm(files_to_compress, desc=f"Adding files to {archive_name}", leave=False):
+        # Create the tar archive
+        with tarfile.open(tar_path, "w") as tar:
+            for json_file, artifact_file in tqdm(files_to_compress, desc=f"Adding files to {tar_path}", leave=False):
                 artifact_path = os.path.join(input_directory, "projects", artifact_file)
                 if os.path.exists(artifact_path):
                     tar.add(artifact_path, arcname=os.path.basename(artifact_file))
                     archive_csv_data.append([json_file, artifact_file, archive_name])
                 else:
                     print(f"File not found: {artifact_file}")
+
+        # Compress the tar archive using pigz or gzip
+        if use_pigz:
+            pigz_command = ["pigz", "-f", f"-p{pigz_cores}", tar_path]
+            subprocess.run(pigz_command, check=True)
+            os.remove(tar_path)
+        else:
+            with open(tar_path, "rb") as f_in, open(archive_name, "wb") as f_out:
+                subprocess.run(["gzip", "-c"], stdin=f_in, stdout=f_out, check=True)
+            os.remove(tar_path)
 
         # Write the archive's data to the master CSV after the archive is created
         with open(master_csv_path, "a", newline="") as csv_file:
@@ -87,7 +102,16 @@ if __name__ == "__main__":
     parser.add_argument("output_directory", type=str, help="Path to the output folder where archives will be saved.")
     parser.add_argument("files_per_archive", type=int, help="Number of files to include in each archive.")
     parser.add_argument("master_csv_path", type=str, help="Path to the master CSV file to be updated.")
+    parser.add_argument("--use-pigz", action="store_true", help="Use pigz for compression.")
+    parser.add_argument("--pigz-cores", type=int, default=1, help="Number of cores to use with pigz (default: 1).")
 
     args = parser.parse_args()
 
-    compress_files_from_json(args.input_directory, args.output_directory, args.files_per_archive, args.master_csv_path)
+    compress_files_from_json(
+        args.input_directory,
+        args.output_directory,
+        args.files_per_archive,
+        args.master_csv_path,
+        args.use_pigz,
+        args.pigz_cores
+    )

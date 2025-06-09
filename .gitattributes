@@ -1,2 +1,26 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+util/wa-hls4ml_processed_vsynth_data.json filter=lfs diff=lfs merge=lfs -text
+plots/resource_calculated_2layer_data.json filter=lfs diff=lfs merge=lfs -text
+plots/timing_calculated_all_conv_data.json filter=lfs diff=lfs merge=lfs -text
+plots/timing_calculated_conv2d_data.json filter=lfs diff=lfs merge=lfs -text
+plots/mplall_conv_timing_grid_heatmaps.pdf filter=lfs diff=lfs merge=lfs -text
+plots/mplall_dense_timing_grid_heatmaps.pdf filter=lfs diff=lfs merge=lfs -text
+util/example_json.json filter=lfs diff=lfs merge=lfs -text
+plots/resource_calculated_all_dense_data.json filter=lfs diff=lfs merge=lfs -text
+plots/resource_calculated_conv2d_data.json filter=lfs diff=lfs merge=lfs -text
+plots/all_dense_combined_grid_heatmaps.pdf filter=lfs diff=lfs merge=lfs -text
+plots/resource_calculated_conv1d_data.json filter=lfs diff=lfs merge=lfs -text
+plots/timing_calculated_3layer_data.json filter=lfs diff=lfs merge=lfs -text
+plots/timing_calculated_all_dense_data.json filter=lfs diff=lfs merge=lfs -text
+plots/all_conv_combined_grid_heatmaps.pdf filter=lfs diff=lfs merge=lfs -text
+plots/calculated_conv2d_data.json filter=lfs diff=lfs merge=lfs -text
+plots/resource_calculated_3layer_data.json filter=lfs diff=lfs merge=lfs -text
+plots/resource_calculated_all_conv_data.json filter=lfs diff=lfs merge=lfs -text
+plots/mplall_conv_resource_grid_heatmaps.pdf filter=lfs diff=lfs merge=lfs -text
+plots/mplall_dense_resource_grid_heatmaps.pdf filter=lfs diff=lfs merge=lfs -text
+util/example_conv.json filter=lfs diff=lfs merge=lfs -text
+util/processed_data.json filter=lfs diff=lfs merge=lfs -text
+plots/calculated_2layer_data.json filter=lfs diff=lfs merge=lfs -text
+plots/timing_calculated_2layer_data.json filter=lfs diff=lfs merge=lfs -text
+plots/timing_calculated_conv1d_data.json filter=lfs diff=lfs merge=lfs -text
