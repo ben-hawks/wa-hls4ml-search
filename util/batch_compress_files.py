@@ -64,22 +64,28 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
         files_to_compress = artifact_files[start_index:end_index]
 
         archive_csv_data = []  # Temporary list to store data for this archive
+        tar_path = os.path.join(output_directory, f"archive_{i + 1}.tar")
 
-        # Use tar with pigz for compression
-        tar_command = ["tar", "-cf", "-", "--use-compress-program=pigz","--best", "--recursive", f"-p{pigz_cores}", "-C", input_directory]
-        tar_command += [os.path.join("projects", artifact_file) for _, artifact_file in files_to_compress]
+        # Create the tar archive
+        with tarfile.open(tar_path, "w") as tar:
+            for json_file, artifact_file in tqdm(files_to_compress, desc=f"Adding files to {tar_path}", leave=False):
+                artifact_path = os.path.join(input_directory, "projects", artifact_file)
+                if os.path.exists(artifact_path):
+                    tar.add(artifact_path, arcname=os.path.basename(artifact_file))
+                    archive_csv_data.append([json_file, artifact_file, archive_name])
+                else:
+                    print(f"File not found: {artifact_file}")
 
-        try:
-            with open(archive_name, "wb") as archive_file:
-                subprocess.run(tar_command, stdout=archive_file, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Error creating archive {archive_name}: {e}")
-            continue
+        # Compress the tar archive using pigz or gzip
+        if use_pigz:
+            pigz_command = ["pigz", "-f", f"-p{pigz_cores}", tar_path, "&&", "rm", tar_path]
+            subprocess.run(pigz_command, check=True)
+        else:
+            with open(tar_path, "rb") as f_in, open(archive_name, "wb") as f_out:
+                subprocess.run(["gzip", "-c", "&&", "rm", tar_path], stdin=f_in, stdout=f_out, check=True)
+            
 
-        # Add data to the master CSV
-        for json_file, artifact_file in files_to_compress:
-            archive_csv_data.append([json_file, artifact_file, archive_name])
-
+        # Write the archive's data to the master CSV after the archive is created
         with open(master_csv_path, "a", newline="") as csv_file:
             writer = csv.writer(csv_file)
             if os.stat(master_csv_path).st_size == 0:  # Add header if the file is empty
