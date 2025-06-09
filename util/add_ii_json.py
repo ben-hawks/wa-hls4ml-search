@@ -55,10 +55,10 @@ if __name__ == "__main__":
     #directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/conv1d"
     #process_json_files(directory)
 
-    print("Processing 2layer Dense JSON files...")
-    directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/2layer"
-    process_json_files(directory)
-
-    #print("Processing 3layer Dense JSON files...")
-    #directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/3layer"
+    #print("Processing 2layer Dense JSON files...")
+    #directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/fixed_rf/2layer"
     #process_json_files(directory)
+
+    print("Processing 3layer Dense JSON files...")
+    directory = "/mnt/d/hls4ml/wa-hls4ml-search/dataset/extracted/3layer"
+    process_json_files(directory)

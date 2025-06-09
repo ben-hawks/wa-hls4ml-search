@@ -159,6 +159,28 @@ def calculate_conv2d_bops(layer_config, model_config, hls_config, current_index)
         * ((1 - sparsity) * bit_width_w * bit_width_a + bit_width_w + bit_width_a + math.log2(kernel_elements))
     )
 
+def calculate_conv1d_bops(layer_config, model_config, hls_config, current_index):
+    input_shape = layer_config["input_shape"]
+    kernel_size = layer_config["kernel_size"]
+    sparsity = layer_config.get("sparsity", 0)
+    bit_width_w = get_bit_width_from_hls_config(hls_config, model_config, key="weight", start_index=current_index)
+    bit_width_a = get_activation_bit_width(model_config, hls_config, start_index=current_index)
+
+    # Calculate output shape
+    output_length = input_shape[-2] - kernel_size[0] + 1
+    output_shape = (input_shape[0], layer_config["output_shape"][-1], output_length)
+
+    # Calculate output_numel (total number of elements in the output tensor)
+    output_numel = math.prod(output_shape[1:])
+
+    # Calculate kernel elements
+    kernel_elements = kernel_size[0] * input_shape[-1]
+
+    return (
+        output_numel
+        * kernel_elements
+        * ((1 - sparsity) * bit_width_w * bit_width_a + bit_width_w + bit_width_a + math.log2(kernel_elements))
+    )
 
 def calculate_maxpool_bops(layer_config, model_config, hls_config, current_index):
     input_shape = layer_config["input_shape"]
@@ -197,6 +219,8 @@ def calculate_layer_bops(layer_config, model_config, hls_config, current_index):
         return calculate_dense_bops(layer_config, model_config, hls_config, current_index)
     elif class_name == "QConv2D":
         return calculate_conv2d_bops(layer_config, model_config, hls_config, current_index)
+    elif class_name == "QConv1D":
+        return calculate_conv1d_bops(layer_config, model_config, hls_config, current_index)
     elif "MaxPooling" in class_name:
         return calculate_maxpool_bops(layer_config, model_config, hls_config, current_index)
     elif "AveragePooling" in class_name:
