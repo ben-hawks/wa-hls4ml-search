@@ -83,7 +83,7 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
             reader = csv.reader(csv_file)
             next(reader, None)  # Skip header
             for row in reader:
-                processed_files.add((row[0], row[1]))  # (JSON File, Artifact File)
+                processed_files.add((row[0]+"_processed.json", row[1]))  # (Model Name, Artifact File)
 
     # Get a list of all JSON files in the input directory
     json_files = [f for f in os.listdir(input_directory) if f.endswith(".json")]
@@ -117,9 +117,11 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
     # Compress files into tar.gz archives
     for i in tqdm(range(num_archives), desc="Creating archives"):
         archive_number = max_archive_number + i + 1
-        archive_name = os.path.join(output_directory, f"archive_{archive_number}.tar.gz")
+        archive_name = f"archive_{archive_number}.tar.gz"
+        archive_path = os.path.join(output_directory, archive_name)
+        relative_archive_name = os.path.relpath(archive_path, start=os.path.dirname(output_directory))
         start_index = i * files_per_archive
-        end_index = min(start_index + files_per_archive, total_files)
+        end_index = min(start_index + files_per_archive, len(artifact_files))
         files_to_compress = artifact_files[start_index:end_index]
 
         archive_csv_data = []  # Temporary list to store data for this archive
@@ -131,7 +133,8 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
                 artifact_path = os.path.join(input_directory, "projects", artifact_file)
                 if os.path.exists(artifact_path):
                     tar.add(artifact_path, arcname=os.path.basename(artifact_file))
-                    archive_csv_data.append([json_file, artifact_file, archive_name])
+                    model_name = json_file.replace("_processed.json", "")  # Derive model_name for CSV
+                    archive_csv_data.append([model_name, artifact_file, relative_archive_name])
                 else:
                     print(f"File not found: {artifact_file}")
 
@@ -140,18 +143,18 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
             pigz_command = ["pigz", "-f", f"-p{pigz_cores}", tar_path]
             subprocess.run(pigz_command, check=True)
         else:
-            with open(tar_path, "rb") as f_in, open(archive_name, "wb") as f_out:
+            with open(tar_path, "rb") as f_in, open(archive_path, "wb") as f_out:
                 subprocess.run(["gzip", "-c"], stdin=f_in, stdout=f_out, check=True)
-        #os.remove(tar_path)  # Remove the tar file after compression
+        os.remove(tar_path)  # Remove the tar file after compression
 
         # Write the archive's data to the master CSV after the archive is created
         with open(master_csv_path, "a", newline="") as csv_file:
             writer = csv.writer(csv_file)
             if os.stat(master_csv_path).st_size == 0:  # Add header if the file is empty
-                writer.writerow(["JSON File", "Artifact File", "Archive Name"])
+                writer.writerow(["Model Name", "Artifact File", "Archive Name"])
             writer.writerows(archive_csv_data)
 
-        #print(f"Created archive: {archive_name} with {len(files_to_compress)} files")
+        #print(f"Created archive: {relative_archive_name} with {len(files_to_compress)} files")
 
 
 if __name__ == "__main__":
