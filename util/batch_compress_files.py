@@ -7,6 +7,48 @@ from math import ceil
 from tqdm import tqdm
 import argparse
 
+def validate_master_csv(input_directory, master_csv_path):
+    """
+    Validate that all artifact files from the JSON files are present in the master CSV.
+
+    Parameters:
+        input_directory (str): Path to the folder containing the JSON files.
+        master_csv_path (str): Path to the master CSV file to validate.
+    """
+    # Extract artifact files from JSON files
+    artifact_files_from_json = set()
+    json_files = [f for f in os.listdir(input_directory) if f.endswith(".json")]
+
+    for json_file in json_files:
+        json_path = os.path.join(input_directory, json_file)
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+                artifact_file = data.get("meta_data", {}).get("artifacts_file")
+                if artifact_file:
+                    artifact_files_from_json.add((json_file, artifact_file))
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Skipping invalid or malformed JSON file: {json_file}")
+
+    # Extract artifact files from the master CSV
+    artifact_files_from_csv = set()
+    if os.path.exists(master_csv_path):
+        with open(master_csv_path, "r") as csv_file:
+            reader = csv.reader(csv_file)
+            next(reader, None)  # Skip header
+            for row in reader:
+                artifact_files_from_csv.add((row[0], row[1]))
+
+    # Find missing artifact files
+    missing_files = artifact_files_from_json - artifact_files_from_csv
+
+    if missing_files:
+        print("The following artifact files are missing from the master CSV:")
+        for json_file, artifact_file in missing_files:
+            print(f"JSON File: {json_file}, Artifact File: {artifact_file}")
+    else:
+        print("All artifact files are present in the master CSV.")
+
 
 def compress_files_from_json(input_directory, output_directory, files_per_archive, master_csv_path, use_pigz, pigz_cores):
     """
@@ -100,7 +142,7 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
         else:
             with open(tar_path, "rb") as f_in, open(archive_name, "wb") as f_out:
                 subprocess.run(["gzip", "-c"], stdin=f_in, stdout=f_out, check=True)
-        os.remove(tar_path)  # Remove the tar file after compression
+        #os.remove(tar_path)  # Remove the tar file after compression
 
         # Write the archive's data to the master CSV after the archive is created
         with open(master_csv_path, "a", newline="") as csv_file:
@@ -109,7 +151,7 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
                 writer.writerow(["JSON File", "Artifact File", "Archive Name"])
             writer.writerows(archive_csv_data)
 
-        print(f"Created archive: {archive_name} with {len(files_to_compress)} files")
+        #print(f"Created archive: {archive_name} with {len(files_to_compress)} files")
 
 
 if __name__ == "__main__":
@@ -131,3 +173,4 @@ if __name__ == "__main__":
         args.use_pigz,
         args.pigz_cores
     )
+    validate_master_csv(args.input_directory, args.master_csv_path)
