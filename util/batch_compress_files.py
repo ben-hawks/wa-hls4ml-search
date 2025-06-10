@@ -23,6 +23,17 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
+    # Determine the starting archive number
+    existing_archives = [
+        f for f in os.listdir(output_directory) if f.startswith("archive_") and f.endswith(".tar.gz")
+    ]
+    if existing_archives:
+        max_archive_number = max(
+            int(f.split("_")[1].split(".")[0]) for f in existing_archives
+        )
+    else:
+        max_archive_number = 0
+
     # Load already processed files from the master CSV
     processed_files = set()
     if os.path.exists(master_csv_path):
@@ -39,32 +50,38 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
 
     # Extract artifact file paths from JSON files
     artifact_files = []
+    total_files = 0  # Counter for all files, including already processed ones
+
     for json_file in json_files:
         json_path = os.path.join(input_directory, json_file)
         try:
             with open(json_path, "r") as f:
                 data = json.load(f)
                 artifact_file = data.get("meta_data", {}).get("artifacts_file")
-                if artifact_file and (json_file, artifact_file) not in processed_files:
-                    artifact_files.append((json_file, artifact_file))
+                if artifact_file:
+                    total_files += 1  # Count all files, even if already processed
+                    if (json_file, artifact_file) not in processed_files:
+                        artifact_files.append((json_file, artifact_file))
         except (json.JSONDecodeError, KeyError) as e:
             print(f"Skipping invalid or malformed JSON file: {json_file}")
 
-    total_files = len(artifact_files)
-    num_archives = ceil(total_files / files_per_archive)
+    # Calculate the number of archives based on unprocessed files
+    num_archives = ceil(len(artifact_files) / files_per_archive)
 
-    print(f"Total files to compress: {total_files}")
+    print(f"Total files found: {total_files}")
+    print(f"Total files to compress: {len(artifact_files)}")
     print(f"Number of archives to create: {num_archives}")
 
     # Compress files into tar.gz archives
     for i in tqdm(range(num_archives), desc="Creating archives"):
-        archive_name = os.path.join(output_directory, f"archive_{i + 1}.tar.gz")
+        archive_number = max_archive_number + i + 1
+        archive_name = os.path.join(output_directory, f"archive_{archive_number}.tar.gz")
         start_index = i * files_per_archive
         end_index = min(start_index + files_per_archive, total_files)
         files_to_compress = artifact_files[start_index:end_index]
 
         archive_csv_data = []  # Temporary list to store data for this archive
-        tar_path = os.path.join(output_directory, f"archive_{i + 1}.tar")
+        tar_path = os.path.join(output_directory, f"archive_{archive_number}.tar")
 
         # Create the tar archive
         with tarfile.open(tar_path, "w") as tar:
@@ -78,12 +95,12 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
 
         # Compress the tar archive using pigz or gzip
         if use_pigz:
-            pigz_command = ["pigz", "-f", f"-p{pigz_cores}", tar_path, "&&", "rm", tar_path]
+            pigz_command = ["pigz", "-f", f"-p{pigz_cores}", tar_path]
             subprocess.run(pigz_command, check=True)
         else:
             with open(tar_path, "rb") as f_in, open(archive_name, "wb") as f_out:
-                subprocess.run(["gzip", "-c", "&&", "rm", tar_path], stdin=f_in, stdout=f_out, check=True)
-            
+                subprocess.run(["gzip", "-c"], stdin=f_in, stdout=f_out, check=True)
+        os.remove(tar_path)  # Remove the tar file after compression
 
         # Write the archive's data to the master CSV after the archive is created
         with open(master_csv_path, "a", newline="") as csv_file:
