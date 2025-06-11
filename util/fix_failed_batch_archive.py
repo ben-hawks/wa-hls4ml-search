@@ -1,20 +1,20 @@
 import os
-import argparse
+import tarfile
 import pandas as pd
-from util.batch_compress_files import compress_files_from_json
+import argparse
+import json
 
-def remake_failed_archive(input_directory, output_directory, files_per_archive, master_csv_path, failed_archive, use_pigz=False, pigz_cores=1):
+def remake_failed_archive_no_dependency(input_directory, output_directory, files_per_archive, master_csv_path, failed_archive):
     """
-    Remake a failed batched archive and update the master CSV file.
+    Remake a failed batched archive by referencing the master CSV file and including artifact files
+    from JSON files not present in the master CSV.
 
     Parameters:
-        input_directory (str): Path to the folder containing the JSON files.
+        input_directory (str): Path to the folder containing the files.
         output_directory (str): Path to the folder where the tar.gz files are saved.
         files_per_archive (int): Number of files to include in each archive.
         master_csv_path (str): Path to the master CSV file.
         failed_archive (str): Name of the failed archive to remake.
-        use_pigz (bool): Whether to use pigz for compression.
-        pigz_cores (int): Number of cores to use with pigz.
     """
     failed_archive_path = os.path.join(output_directory, failed_archive)
 
@@ -27,48 +27,64 @@ def remake_failed_archive(input_directory, output_directory, files_per_archive, 
     # Remove the failed archive
     os.remove(failed_archive_path)
 
-    # Update the master CSV file to remove associated artifact files
+    # Ensure the remade archive does not overwrite an existing file
+    remade_archive_path = failed_archive_path
+    counter = 1
+    while os.path.exists(remade_archive_path):
+        base_name, ext = os.path.splitext(failed_archive)
+        remade_archive_path = os.path.join(output_directory, f"{base_name}_remade_{counter}{ext}")
+        counter += 1
+
+    # Determine files to include in the archive by referencing the master CSV
     try:
         master_csv = pd.read_csv(master_csv_path)
-        updated_csv = master_csv[master_csv['Archive Name'] != failed_archive]
-        updated_csv.to_csv(master_csv_path, index=False)
-        print(f"Updated master CSV file: Removed entries for '{failed_archive}'.")
+        master_files = set(master_csv['Artifact File'].tolist())
+        files_to_include = master_csv[master_csv['Archive Name'] == failed_archive]['Artifact File'].tolist()
+
+        if files_to_include is None:    # Add artifact files from JSON files not present in the master CSV
+            for file in os.listdir(input_directory):
+                if file.endswith(".json"):
+                    json_path = os.path.join(input_directory, file)
+                    with open(json_path, 'r') as f:
+                        data = json.load(f)
+                        artifact_file = data.get("meta_data", {}).get("artifacts_file", {})
+                        if artifact_file and artifact_file not in master_files:
+                            files_to_include.append(artifact_file)
+
+        print(f"Total files to compress: {len(files_to_include)}")
+
     except Exception as e:
-        print(f"Error updating master CSV file: {e}")
+        print(f"Error reading master CSV or processing JSON files: {e}")
         return
 
-    # Recreate the archive
+    # Create the new archive
     try:
-        compress_files_from_json(
-            input_directory,
-            output_directory,
-            files_per_archive,
-            master_csv_path,
-            use_pigz,
-            pigz_cores
-        )
-        print(f"Successfully remade archive: {failed_archive}")
+        with tarfile.open(remade_archive_path, "w:gz") as tar:
+            for file in files_to_include:
+                file_path = os.path.join(input_directory, "projects", artifact_file)
+                if os.path.exists(file_path):
+                    tar.add(file_path, arcname=file)
+                else:
+                    print(f"Warning: File '{file}' not found in input directory.")
+        print(f"Successfully remade archive: {remade_archive_path}")
     except Exception as e:
-        print(f"Error remaking archive: {e}")
+        print(f"Error creating archive: {e}")
+        return
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Remake a failed batched archive.")
-    parser.add_argument("input_directory", type=str, help="Path to the input folder containing JSON files.")
+    parser = argparse.ArgumentParser(description="Remake a failed batched archive by referencing the master CSV file.")
+    parser.add_argument("input_directory", type=str, help="Path to the input folder containing files.")
     parser.add_argument("output_directory", type=str, help="Path to the output folder where archives are saved.")
     parser.add_argument("files_per_archive", type=int, help="Number of files to include in each archive.")
     parser.add_argument("master_csv_path", type=str, help="Path to the master CSV file.")
     parser.add_argument("failed_archive", type=str, help="Name of the failed archive to remake.")
-    parser.add_argument("--use-pigz", action="store_true", help="Use pigz for compression.")
-    parser.add_argument("--pigz-cores", type=int, default=1, help="Number of cores to use with pigz (default: 1).")
 
     args = parser.parse_args()
 
-    remake_failed_archive(
+    remake_failed_archive_no_dependency(
         args.input_directory,
         args.output_directory,
         args.files_per_archive,
         args.master_csv_path,
-        args.failed_archive,
-        args.use_pigz,
-        args.pigz_cores
+        args.failed_archive
     )
