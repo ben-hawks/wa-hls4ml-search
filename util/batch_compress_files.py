@@ -145,7 +145,7 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
         else:
             with open(tar_path, "rb") as f_in, open(archive_path, "wb") as f_out:
                 subprocess.run(["gzip", "-c"], stdin=f_in, stdout=f_out, check=True)
-        os.remove(tar_path)  # Remove the tar file after compression
+        #os.remove(tar_path)  # Remove the tar file after compression
 
         # Write the archive's data to the master CSV after the archive is created
         with open(master_csv_path, "a", newline="") as csv_file:
