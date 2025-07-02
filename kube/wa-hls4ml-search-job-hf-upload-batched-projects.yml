@@ -25,7 +25,7 @@ spec:
               source /venv/bin/activate && 
               echo "activated venv" &&
               echo "Running job..." &&
-              huggingface-cli upload-large-folder fastmachinelearning/wa-hls4ml-projects --repo-type=dataset /output/batched_projects --num-workers=6
+              huggingface-cli upload-large-folder fastmachinelearning/wa-hls4ml-projects --repo-type=dataset /output/batched_projects --num-workers=16
         volumeMounts:
         - name: xilinx-tools
           mountPath: /tools/Xilinx

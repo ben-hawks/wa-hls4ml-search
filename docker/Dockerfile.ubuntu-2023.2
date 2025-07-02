@@ -27,6 +27,8 @@ FROM xilinx-ubuntu-20.04.4-user:v2023.2 AS deploy
 
 COPY --from=build --chown=xilinx /venv /venv
 
+RUN apt-get install pigz -y
+
 USER xilinx
 WORKDIR /home/xilinx
 
@@ -37,8 +39,6 @@ RUN echo "source /opt/Xilinx/Vivado/2023.2/settings64.sh" > ~/.bashrc
 RUN cat ~/.bashrc
 
 ENV LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
-
-RUN apt-get install pigz -y
 
 RUN cat ~/.bashrc
 
