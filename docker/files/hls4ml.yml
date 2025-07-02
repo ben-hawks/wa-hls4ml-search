@@ -20,4 +20,6 @@ dependencies:
     - tensorflow==2.11
     - git+https://github.com/google/qkeras.git@1ab354276a041b45cd72c300e89a7c51ec99fa35#egg=qkeras
     - hls4ml[profiling]==0.8.1
+    - tqdm
+    - huggingface-hub
     #- qonnx<0.3.0

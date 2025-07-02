@@ -38,6 +38,8 @@ RUN cat ~/.bashrc
 
 ENV LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
 
+RUN apt-get install pigz -y
+
 RUN cat ~/.bashrc
 
 # Add Tini - https://stackoverflow.com/questions/55733058/vivado-synthesis-hangs-in-docker-container-spawned-by-jenkins

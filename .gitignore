@@ -167,3 +167,4 @@ hlsproj
 
 # Dataset files
 dataset
+/kube/hf_secret.yml

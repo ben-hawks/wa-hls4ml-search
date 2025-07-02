@@ -1,0 +1,103 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wa-hls4ml-search-job-batch-compress-2layer
+  labels:
+    jobgroup: wa-hls4ml-search-batch-compress
+spec:
+  template:
+    spec:
+      containers:
+      - name: hls4ml-docker
+        image:  ghcr.io/ben-hawks/wa-hls4ml-search:v2023.2
+        terminationMessagePolicy: FallbackToLogsOnError
+        command: ["/tini", "--", "/bin/bash"]
+        env:
+          - name: LD_PRELOAD
+            value: /lib/x86_64-linux-gnu/libudev.so.1
+        args:
+          - -l
+          - -c
+          - >-
+              source /venv/bin/activate && 
+              echo "activated venv" &&
+              echo "Running job..." &&
+              python /opt/repo/wa-hls4ml-search/batch_compress_files.py
+              /output/2layer_run_vsynth_2023-2
+              /output/batched_projects/2layer
+              100
+              /output/batched_projects/2layer.csv
+              --use-pigz
+              --pigz-cores 16
+        volumeMounts:
+        - name: xilinx-tools
+          mountPath: /tools/Xilinx
+        - name: git-repo-bkup
+          mountPath: /opt/repo
+        - name: wa-search-output-backup
+          mountPath: /output
+        - name: eph-storage
+          mountPath: /project
+        resources:
+          limits:
+            memory: 16Gi
+            cpu: "16"
+            ephemeral-storage: 128Gi
+          requests:
+            memory: 16Gi
+            cpu: "16"
+            ephemeral-storage: 128Gi
+      initContainers:
+      - name: init-clone-repo
+        image: alpine/git
+        command: ["/bin/sh"]
+        args:
+          - -l
+          - -c
+          - >-
+              if cd /opt/repo/wa-hls4ml-search; 
+              then git pull; 
+              else git clone https://github.com/ben-hawks/wa-hls4ml-search -b main /opt/repo/wa-hls4ml-search;
+              fi
+        volumeMounts:
+          - name: git-repo-bkup
+            mountPath: /opt/repo
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: "2"
+          requests:
+            memory: 8Gi
+            cpu: "2"
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 1000
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/region
+                    operator: In
+                    values:
+                      - us-central
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values:
+                      - "true"
+      volumes:
+      - name: xilinx-tools
+        persistentVolumeClaim:
+          claimName: xilinx-tools-central
+      - name: wa-search-output-backup
+        persistentVolumeClaim:
+          claimName: wa-search-output-backup
+      - name: git-repo-bkup
+        persistentVolumeClaim:
+            claimName: wa-search-git-bkup
+      - name: eph-storage
+        emptyDir:
+          sizeLimit: 128Gi
+      restartPolicy: Never
+  backoffLimit: 5
