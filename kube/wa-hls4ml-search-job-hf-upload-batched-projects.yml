@@ -16,7 +16,7 @@ spec:
         - name: HUGGING_FACE_HUB_TOKEN
           valueFrom:
             secretKeyRef:
-              name: hf-token-secret
+              name: bhawks-hf-token-secret
               key: token
         args:
           - -l

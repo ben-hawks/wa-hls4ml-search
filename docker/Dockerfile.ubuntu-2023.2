@@ -27,6 +27,7 @@ FROM xilinx-ubuntu-20.04.4-user:v2023.2 AS deploy
 
 COPY --from=build --chown=xilinx /venv /venv
 
+USER root
 RUN apt-get install pigz -y
 
 USER xilinx
