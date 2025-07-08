@@ -63,6 +63,8 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
         pigz_cores (int): Number of cores to use with pigz.
         verbose (bool): Whether to print status messages for each compressed file.
     """
+    print("Starting compression process...")
+
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
@@ -73,6 +75,8 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
     max_archive_number = max(
         (int(f.split("_")[1].split(".")[0]) for f in existing_archives), default=0
     )
+
+    print(f"Starting archive number: {max_archive_number + 1}")
 
     # Load already processed files from the master CSV
     processed_files = set()
@@ -86,9 +90,11 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
     # Get a list of all JSON files in the input directory
     json_files = [f for f in os.listdir(input_directory) if f.endswith(".json")]
 
+    print(f"Found {len(json_files)} JSON files in the input directory.")
+
     # Extract artifact file paths from JSON files
     artifact_files = []
-    for json_file in json_files:
+    for json_file in tqdm(json_files, desc="Processing JSON files"):
         json_path = os.path.join(input_directory, json_file)
         try:
             with open(json_path, "r") as f:
@@ -102,8 +108,11 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
     # Calculate the number of archives
     num_archives = ceil(len(artifact_files) / files_per_archive)
 
-    # Compress files into tar.gz archives
     total_files = len(artifact_files)
+    print(f"Total files to compress: {total_files}")
+
+    # Compress files into tar.gz archives
+
     for i in tqdm(range(num_archives), desc="Creating archives"):
         archive_number = max_archive_number + i + 1
         archive_name = f"archive_{archive_number}.tar.gz"

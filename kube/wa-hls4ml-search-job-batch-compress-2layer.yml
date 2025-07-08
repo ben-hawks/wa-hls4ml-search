@@ -22,13 +22,14 @@ spec:
               source /venv/bin/activate && 
               echo "activated venv" &&
               echo "Running job..." &&
-              python /opt/repo/wa-hls4ml-search/batch_compress_files.py
+              python /opt/repo/wa-hls4ml-search/util/batch_compress_files.py
               /output/2layer_run_vsynth_2023-2
               /output/batched_projects/2layer
               100
               /output/batched_projects/2layer.csv
               --use-pigz
               --pigz-cores 16
+              --verbose
         volumeMounts:
         - name: xilinx-tools
           mountPath: /tools/Xilinx
