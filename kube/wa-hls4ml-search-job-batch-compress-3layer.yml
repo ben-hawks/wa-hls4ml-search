@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: wa-hls4ml-search-job-batch-compress-2layer
+  name: wa-hls4ml-search-job-batch-compress-3layer
   labels:
     jobgroup: wa-hls4ml-search-batch-compress
 spec:
