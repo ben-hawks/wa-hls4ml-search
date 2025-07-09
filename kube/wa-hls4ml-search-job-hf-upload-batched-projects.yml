@@ -66,6 +66,7 @@ spec:
           requests:
             memory: 8Gi
             cpu: "2"
+        imagePullPolicy: Always
       securityContext:
         runAsUser: 0
         runAsGroup: 0
