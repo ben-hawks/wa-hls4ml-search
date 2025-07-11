@@ -102,7 +102,7 @@ def compress_files_from_json(input_directory, output_directory, files_per_archiv
                 artifact_file = data.get("meta_data", {}).get("artifacts_file")
                 if artifact_file and (json_file, artifact_file) not in processed_files:
                     artifact_files.append((json_file, artifact_file))
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, AttributeError):
             print(f"Skipping invalid or malformed JSON file: {json_file}")
 
     # Calculate the number of archives
