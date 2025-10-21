@@ -19,6 +19,7 @@ from ray.exceptions import RayTaskError
 import logging
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 @contextmanager
 def suppress_stdout():
     with open(os.devnull, "w") as devnull:
@@ -252,7 +253,7 @@ class Model_Generator:
                 'pooling': [0.5, 0.5]
             },
             'activation_rate': .5,
-            'dropout_chance': .5,
+            'dropout_chance': 0,
             'dropout_rate': .4,
             'flatten_chance': .5,
             'pooling_chance': .5,
@@ -339,7 +340,8 @@ class Model_Generator:
         self.time_layers = [Conv1D, QConv1D]
         self.start_layers = [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense, QSeparableConv2D, QDepthwiseConv2D]
 
-        self.activations = ["no_activation", "relu", "tanh", "sigmoid", "softmax"]
+        self.activations = ["relu", "tanh", "sigmoid", "softmax"]
+        # self.activations = ["no_activation", "relu", "tanh", "sigmoid", "softmax"]
         
         self.layer_depth = 0
 
@@ -361,6 +363,8 @@ class Model_Generator:
         if self.q_on:
             if 'softmax' in self.activations:
                 self.activations.remove('softmax')
+                self.params['probs']['activations'] = self.params['probs']['activations'][:-1]
+
             self.activations = [f'quantized_{activ_func}({params["activ_bit_width"]},{params["activ_int_width"]})' for
                                 activ_func in self.activations]
             
@@ -398,7 +402,7 @@ ray.init(num_cpus=os.cpu_count(), log_to_driver=False)
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-@ray.remote(max_retries=10, retry_exceptions=True)
+@ray.remote(max_retries=10, retry_exceptions=False)
 def generate_model(bitwidth):
     try:
         mg = Model_Generator() # Latency strategy Dense jobs
@@ -410,6 +414,8 @@ def generate_model(bitwidth):
                                            'activation_rate': 1,
                                            'probs': {'activations': [.30,.30,.30,.10],
                                                      # Activations: ["relu", "tanh", "sigmoid", "softmax"]
+                                                     # if a layer is quantized, softmax is removed, the last element of
+                                                     # the [activations][probs] entry is removed, and others are quantized
                                                      # Must set probabilities for the layers in start_layers as well!
                                                     # conv layers
                                                     # q_chance = 0 [Conv2D]
@@ -446,16 +452,17 @@ def threaded_exec(batch_range: int, batch_size: int):
                 # model_name might have dupes because of multithreading, so make a new name for each model
                 model_dict.update({f"dense_resource_{succeeded}": model_json})  # Store the model with its name
                 succeeded += 1
-        json_models = json.dumps(model_dict)
-        with open(f"dense_resource_models/dense_resource_batch_{batch_i}.json", "w") as file:
+        json_models = json.dumps(model_dict, indent=2)
+        with open(f"dense_resource_test/dense_resource_batch_{batch_i}.json", "w") as file:
             file.write(json_models)
 
 
 if __name__ == '__main__':
-    batch_range = 334
+    # batch range is number of files to generate
+    # batch size is number of models per file
+    batch_range = 1 # 334
     batch_size = 50
     threaded_exec(batch_range, batch_size)
-    
     # left this here as an example but everything beyond this line in __name__ can be deleted
     def callback(mg: Model_Generator, layers: list):
         if mg.layer_depth > 1:

@@ -9,7 +9,7 @@ from keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
 import hls4ml
 from .keras_parser import config_from_keras_model
-from gen_dense_models_v2 import generate_model_from_config
+from deperecated.gen_dense_models_v2 import generate_model_from_config
 
 def get_vivado_version():
     xilinx_vivado_path = os.getenv('XILINX_VIVADO', '')

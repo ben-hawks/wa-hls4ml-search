@@ -1,7 +1,8 @@
 # Installing on HPRC
 ```
+# $SCRATCH is assumed to be your scratch directory (or wherever you have large amounts of storage) on HPRC
 cd $SCRATCH
-git clone git@github.com:keeganasmith/wa-hls4ml-search.git
+git clone git@github.com:ben-hawks/wa-hls4ml-search.git
 cd wa-hls4ml-search.git
 mkdir hlsproj
 mkdir hlsproj/output

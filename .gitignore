@@ -168,3 +168,26 @@ hlsproj
 # Dataset files
 dataset
 /kube/hf_secret.yml
+!/plots/resource_calculated_2layer_data.json
+
+!/plots/resource_calculated_3layer_data.json
+
+!/plots/resource_calculated_all_conv_data.json
+
+!/plots/resource_calculated_all_dense_data.json
+
+!/plots/resource_calculated_conv1d_data.json
+
+!/plots/resource_calculated_conv2d_data.json
+
+!/plots/timing_calculated_2layer_data.json
+
+!/plots/timing_calculated_3layer_data.json
+
+!/plots/timing_calculated_all_conv_data.json
+
+!/plots/timing_calculated_all_dense_data.json
+
+!/plots/timing_calculated_conv1d_data.json
+
+!/plots/timing_calculated_conv2d_data.json

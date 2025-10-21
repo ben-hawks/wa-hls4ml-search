@@ -22,4 +22,6 @@ dependencies:
     - git+https://github.com/google/qkeras.git@1ab3542#egg=qkeras
     - hls4ml[profiling]==0.8.1
     - qonnx
+    - ray
     - torch
+    - tqdm

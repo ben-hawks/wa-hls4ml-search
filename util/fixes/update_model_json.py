@@ -1,3 +1,10 @@
+'''
+Script to update model JSON files by extracting Keras models from artifact tarballs,
+loading them, updating their configurations, and saving the results. This is useful if you
+need to update model JSON configurations/the JSON configuration format in the results file without
+re-running the entire model generation process.
+'''
+
 import os
 import sys
 import json
@@ -9,7 +16,7 @@ import subprocess
 from concurrent.futures import ProcessPoolExecutor
 from keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
-from keras_parser import config_from_keras_model
+from ..keras_parser import config_from_keras_model
 from tqdm import tqdm
 
 def extract_target_file(artifacts_path, target_filename, extract_to="./"):

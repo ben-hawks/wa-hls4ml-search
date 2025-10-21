@@ -33,8 +33,23 @@ self.params = {
     'activ_bit_width': 8, 'activ_int_width': 4,         -- range for qkeras bitwidths
     'weight_bit_width': 6, 'weight_int_width': 3,       -- range for qkeras bitwidths
     'probs': {                                          -- hyperparameter generation chances. Default is a uniform distribution
-        'activations': [],
-        'dense_layers': [], 'conv_layers': [], 'start_layers': [], 'time_layers': [],
+        'activations': [.30,.30,.30,.10],
+         # Activations: ["relu", "tanh", "sigmoid", "softmax"]
+         # if a layer is quantized, softmax is removed, the last element of
+         # the [activations][probs] entry is removed, and others are quantized
+        # For layer probs, you must set probabilities for the layers in start_layers as well!
+        # conv layers
+        # q_chance = 0 [Conv2D]
+        # q_chance < 1 [Conv2D, QConv2D, QSeparableConv2D, QDepthwiseConv2D]
+        # q_chance = 1 [QConv2D, QSeparableConv2D, QDepthwiseConv2D]
+        # Dense/Time are either qkeras or not in line with q_chance,
+        # 1 element if 0/1, else 2 elements
+         'dense_layers': [], 'conv_layers': [], 'time_layers': [],
+         # start layers
+         #q_chance = 0 [Conv1D, Conv2D, Dense]
+         #q_chance < 1 [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense, QSeparableConv2D, QDepthwiseConv2D]
+         #q_chance = 1 [QConv1D, QConv2D, QDense, QSeparableConv2D, QDepthwiseConv2D]
+         'start_layers': [],
         'padding': [0.5, 0.5],  # border, off
         'pooling': [0.5, 0.5]  # max, avg
     },
@@ -51,7 +66,7 @@ self.params = {
 This is intentionally left sensitive. To set likelihood of model types, the lists within *'probs'* can be set to define a custom distribution. 
 
 For ex.
-Disabling the no activation function, reul and softmax would be:
+Disabling the no activation function, relu and softmax would be:
 ```
     self.activations = ["no_activation", "relu", "tanh", "sigmoid", "softmax"]
 

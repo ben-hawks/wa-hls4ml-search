@@ -7,7 +7,7 @@ import json
 import csv
 import pandas as pd
 
-synth_types = {"hls":"CSynthesisReport", "rtl":"SynthesisReport"} #TODO Validate name of rtl synth object
+synth_types = {"hls":"CSynthesisReport", "rtl":"SynthesisReport"}
 
 import hls4ml_rf_finder
 

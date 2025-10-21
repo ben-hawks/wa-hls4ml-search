@@ -1,14 +1,12 @@
 import os
-import sys
 import tarfile
 import shutil
 from tensorflow.keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
 import hls4ml
 import argparse
-import yaml
 import json
-from gen_dense_models_v2 import generate_model_from_config
+from deperecated.gen_dense_models_v2 import generate_model_from_config
 from util.json_dataset_processor import process_json_entry
 
 try:
@@ -46,7 +44,9 @@ def run_iter(name = "model",  model_file = '/project/model.h5', rf=1, output = "
         _add_supported_quantized_objects(co)
         model = load_model(model_file, custom_objects=co)
         model.summary()
-    elif config_str is not None and precision is not None: # else generate model from config string
+    elif config_str is not None and precision is not None:
+        # else generate model from config string
+        # this method is deperecated, but kept for compatibility with older RF scans
         model = generate_model_from_config(config_str, precision, output_dir=".", save_model=False)
         model.summary()
     else:
