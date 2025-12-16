@@ -1,0 +1,36 @@
+{
+    // Model architecture parameters
+    "dense_lb": 16,                    // Lower bound for dense layer size (must be power of 2)
+    "dense_ub": 256,                   // Upper bound for dense layer size (must be power of 2)
+    "conv_filters_ub": 32,             // Upper bound for convolutional filters (must be power of 2)
+    "conv_init_size_lb": 16,           // Lower bound for initial convolutional layer size (must be power of 2)
+    "conv_init_size_ub": 128,          // Upper bound for initial convolutional layer size (must be power of 2)
+    
+    // Quantization parameters
+    "q_chance": 1.0,                   // Probability of using qkeras over keras layers (0.0 to 1.0)
+    "flatten_chance": 0.2,             // Probability of flattening before final layers (0.0 to 1.0)
+    "pooling_chance": 0.4,             // Probability of adding pooling layers (0.0 to 1.0)
+    
+    // Bit width parameters
+//    "weight_bit_width": 4,            // Bit width for weights
+    "weight_int_width": 2,              // Integer bit width for weights
+//    "activ_bit_width": 4,             // Bit width for activations
+    "activ_int_width": 2,               // Integer bit width for activations
+    "max_bit_width_po2": 4,                 // Max bit width po2 exponent for models, both activation and weights. Range is 2-max at Po2 steps
+
+    // Activation and layer probabilities
+    "activation_rate": 1.0,            // Activation rate (0.0 to 1.0)
+    
+    // Probability distributions for different layer types
+    "probs": {
+        "activations": [0.25, 0.25, 0.25, 0.25], // Probabilities for relu, tanh, sigmoid, softmax
+        "dense_layers": [0.5, 0.5],              // Probabilities for Dense vs QDense layers
+        "conv_layers": [0.25, 0.25, 0.25, 0.25], // Probabilities for Conv2D, QConv2D, QSeparableConv2D, QDepthwiseConv2D
+        "start_layers": [0.1, 0.1, 0.2, 0.2, 0.2, 0.2], // Probabilities for Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense
+        "padding": [0.6, 0.4],                   // Probabilities for 'same' vs 'valid' padding
+        "pooling": [0.5, 0.5]                    // Probabilities for MaxPooling vs AveragePooling
+    },
+    
+    // Network structure
+    "total_layers": 6                  // Total number of layers in generated networks
+}

@@ -1,6 +1,8 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import json
+import yaml
+import argparse
 from qkeras import QDense, QConv2D, QConv1D, QAveragePooling2D, QActivation, quantized_bits, QDepthwiseConv2D, QSeparableConv2D, QSeparableConv1D, QLSTM
 from keras.layers import Dense, Conv2D, Flatten, Activation, Conv1D, LSTM, Layer, Input
 from keras.models import Model, model_from_json
@@ -18,10 +20,17 @@ from ray.exceptions import RayTaskError
 
 import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 @contextmanager
 def suppress_stdout():
+    """
+    Context manager to suppress stdout.
+    """
     with open(os.devnull, "w") as devnull:
         old_stdout = sys.stdout
         sys.stdout = devnull
@@ -33,23 +42,31 @@ def suppress_stdout():
 #clip_base_2 = lambda x: 2 ** round(np.log2(x))
 clip_base_2 = lambda x: 2 ** max(1, round(np.log2(max(1, x))))
 
-class Model_Generator:
-    failed_models = 0
-
+class ModelGenerator:
+    """
+    Class for generating neural network models with various configurations.
+    """
+    
     def __init__(self):
+        """
+        Initialize the ModelGenerator with default parameters and layer configurations.
+        """
         self.reset_layers()
+        self.failed_models = 0
 
     def config_layer(self, layer_type: Layer) -> dict:
         """
-        Returns hyper parameters for layer initialization as a dict
-
-        arguments:
-        layer_type -- takes in the selection of layer so it can specify
+        Returns hyper parameters for layer initialization as a dict.
+        
+        Args:
+            layer_type (Layer): The type of layer to configure
+            
+        Returns:
+            dict: Configuration parameters for the layer
         """
         # Ensure weights match the population
         #if len(self.params['probs']['activations']) != len(self.activations):
         #    self.params['probs']['activations'] = [1 / len(self.activations)] * len(self.activations)
-        print(self.activations)
         activation = random.choices(self.activations, weights=self.params['probs']['activations'], k=1)[0]
         use_bias = random.random() < self.params['bias_rate']
 
@@ -94,10 +111,15 @@ class Model_Generator:
 
     def next_layer(self, last_layer: Layer, input_layer: Layer = None, pre_config: dict = None) -> Layer:
         """
-        Takes previous layer and configuration displays and returns back layer
+        Takes previous layer and configuration displays and returns back layer.
         
-        arguments:
-        last_layer -- previous keras/qkeras layer
+        Args:
+            last_layer (Layer): Previous keras/qkeras layer
+            input_layer (Layer, optional): Input layer
+            pre_config (dict, optional): Predefined configuration
+            
+        Returns:
+            list: List of layers
         """
                 
         if 'dense' in self.name:
@@ -190,7 +212,7 @@ class Model_Generator:
                                                strides=hyper_params['stride'],
                                                use_bias=hyper_params['use_bias'], padding=hyper_params['padding'])(last_layer)]
                 elif layer_type == QLSTM:
-                    raise NotImplemented
+                    raise NotImplementedError("LSTM not implemented")
                 
                 if "no_activation" not in hyper_params['activation']:
                     layer_choice.append(QActivation(activation=hyper_params['activation'])(layer_choice[-1]))
@@ -200,7 +222,7 @@ class Model_Generator:
                     layer_choice.append(pooling(2)(layer_choice[-1]))
             else:
                 if layer_type == LSTM:
-                    raise NotImplemented
+                    raise NotImplementedError("LSTM not implemented")
                 elif layer_type == Conv1D:
                     layer_choice = [layer_type(filters=hyper_params['out_filters'], kernel_size=hyper_params['kernel'],
                                                strides=hyper_params['stride'],
@@ -225,13 +247,16 @@ class Model_Generator:
                     save_file: typing.IO = None) -> Model:
 
         """
-        Generates interconnected network based on defaults or extra params, returns Model
-
-        keyword arguments:
-        total_layers -- total active layers in a network (default: 3)
-        add_params -- parameters to specify besides defaults for model generation (default: {})
-        q_chance -- the prob that we use qkeras over keras
-        save_file -- open file descriptor for log file (default: None)
+        Generates interconnected network based on defaults or extra params, returns Model.
+        
+        Args:
+            total_layers (int): Total active layers in a network (default: 3)
+            add_params (dict): Parameters to specify besides defaults for model generation (default: {})
+            callback: Callback function for model generation
+            save_file: Open file descriptor for log file (default: None)
+            
+        Returns:
+            Model: Generated Keras model
         """
 
         add_params = {k: add_params[k] for k in add_params}
@@ -326,14 +351,14 @@ class Model_Generator:
             self.reset_layers()
             if self.failed_models > 10:  # Limit recursion depth
                 raise RuntimeError("Exceeded maximum retries for generating network") from e
-            logging.error(f"Error generating network: {e}")
+            logger.error(f"Error generating network: {e}")
             return self.gen_network(total_layers=total_layers,
                                     add_params=add_params, callback=callback,
                                     save_file=save_file)
 
     def reset_layers(self) -> None:
         """
-        Used to return class to initial state. Useful if generating multiple networks
+        Used to return class to initial state. Useful if generating multiple networks.
         """
         self.dense_layers = [Dense, QDense]
         self.conv_layers = [QConv2D, Conv2D, QSeparableConv2D, QDepthwiseConv2D]
@@ -346,6 +371,13 @@ class Model_Generator:
         self.layer_depth = 0
 
     def filter_q(self, q_chance: float, params: dict) -> None:
+        """
+        Filter layers based on quantization chance.
+        
+        Args:
+            q_chance (float): Probability of using qkeras over keras
+            params (dict): Parameters dictionary
+        """
         blacklist = []
         self.q_on = random.random() < q_chance
 
@@ -363,7 +395,8 @@ class Model_Generator:
         if self.q_on:
             if 'softmax' in self.activations:
                 self.activations.remove('softmax')
-                self.params['probs']['activations'] = self.params['probs']['activations'][:-1]
+                if len(self.activations) != len(self.params['probs']['activations']):
+                    self.params['probs']['activations'] = self.params['probs']['activations'][:-1]
 
             self.activations = [f'quantized_{activ_func}({params["activ_bit_width"]},{params["activ_int_width"]})' for
                                 activ_func in self.activations]
@@ -384,10 +417,13 @@ class Model_Generator:
 
     def load_models(self, save_file: str) -> list[Model]:
         """
-        Parses and returns an iterable of generated models
+        Parses and returns an iterable of generated models.
         
-        arguments:
-        save_file -- path to batch of models
+        Args:
+            save_file (str): Path to batch of models
+            
+        Yields:
+            Model: Generated models
         """
 
         with open(save_file, "r") as chunk_file:
@@ -397,55 +433,113 @@ class Model_Generator:
                 _add_supported_quantized_objects(co)
                 yield model_from_json(model_desc, custom_objects=co)
 
+def load_config(config_file_path):
+    """
+    Load configuration from a JSON file.
+    
+    Args:
+        config_file_path (str): Path to the configuration file
+        
+    Returns:
+        dict: Configuration parameters
+    """
+    try:
+        with open(config_file_path, 'r') as config_file:
+            config = json.load(config_file)
+        logger.info(f"Loaded configuration from {config_file_path}")
+        return config
+    except FileNotFoundError:
+        logger.error(f"Configuration file not found: {config_file_path}")
+        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in configuration file {config_file_path}: {e}")
+        raise
+
+def get_default_config():
+    """
+    Get the default configuration parameters.
+    
+    Returns:
+        dict: Default configuration parameters
+    """
+    return {
+        'dense_lb': 8, 'dense_ub': 128, 'conv_filters_ub': 16,
+        'conv_init_size_lb': 8, 'conv_init_size_ub': 64,
+        'q_chance': 1, 'flatten_chance': .1, 'pooling_chance': .3,
+        'weight_bit_width': 2, 'weight_int_width': 1,
+        'activ_bit_width': 2, 'activ_int_width': 1,
+        'activation_rate': 1,
+        'probs': {
+            'activations': [.30,.30,.30,.10],
+            'dense_layers': [1], 'conv_layers': [0, 0, 0], 'time_layers': [0],
+            'start_layers': [0, 0, 1, 0, 0],
+            'padding': [0.5, 0.5],
+            'pooling': [0.2, 0.2]
+        },
+        'total_layers': 5
+    }
+
+def create_parser():
+    """
+    Create and configure the argument parser.
+    
+    Returns:
+        argparse.ArgumentParser: Configured argument parser
+    """
+    parser = argparse.ArgumentParser(description='HLS4ML Model Generator')
+    parser.add_argument('-c', '--config', type=str, help='Path to configuration file (JSON format)')
+    parser.add_argument('-b', '--batch_range', type=int, default=1, help='Number of files to generate')
+    parser.add_argument('-s', '--batch_size', type=int, default=50, help='Number of models per file')
+    parser.add_argument('-o', '--output_dir', type=str, default='dense_resource_test', help='Output directory')
+    return parser
+
+# Initialize Ray
 ray.init(num_cpus=os.cpu_count(), log_to_driver=False)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 @ray.remote(max_retries=10, retry_exceptions=False)
-def generate_model(bitwidth):
+def generate_model(bitwidth, config_params):
+    """
+    Generate a model with specified bitwidth and configuration.
+    
+    Args:
+        bitwidth (int): Bitwidth for quantization
+        config_params (dict): Configuration parameters
+        
+    Returns:
+        tuple: (model_name, model_json)
+    """
     try:
-        mg = Model_Generator() # Latency strategy Dense jobs
-        model = mg.gen_network(add_params={'dense_lb': 8, 'dense_ub': 128, 'conv_filters_ub': 16,
-                                           'conv_init_size_lb': 8, 'conv_init_size_ub': 64,
-                                           'q_chance': 1, 'flatten_chance': .1, 'pooling_chance': .3,
-                                           'weight_bit_width': bitwidth, 'weight_int_width': 1,
-                                           'activ_bit_width': bitwidth, 'activ_int_width': 1,
-                                           'activation_rate': 1,
-                                           'probs': {'activations': [.30,.30,.30,.10],
-                                                     # Activations: ["relu", "tanh", "sigmoid", "softmax"]
-                                                     # if a layer is quantized, softmax is removed, the last element of
-                                                     # the [activations][probs] entry is removed, and others are quantized
-                                                     # Must set probabilities for the layers in start_layers as well!
-                                                    # conv layers
-                                                    # q_chance = 0 [Conv2D]
-                                                    # q_chance < 1 [Conv2D, QConv2D, QSeparableConv2D, QDepthwiseConv2D]
-                                                    # q_chance = 1 [QConv2D, QSeparableConv2D, QDepthwiseConv2D]
-                                                    # Dense/Time are either qkeras or not in line with q_chance,
-                                                    # 1 element if 0/1, else 2 elements
-                                                     'dense_layers': [1], 'conv_layers': [0, 0, 0], 'time_layers': [0],
-                                                     # start layers
-                                                     #q_chance = 0 [Conv1D, Conv2D, Dense]
-                                                     #q_chance < 1 [Conv1D, QConv1D, Conv2D, QConv2D, QDense, Dense, QSeparableConv2D, QDepthwiseConv2D]
-                                                     #q_chance = 1 [QConv1D, QConv2D, QDense, QSeparableConv2D, QDepthwiseConv2D]
-                                                     'start_layers': [0, 0, 1, 0, 0],
-                                                     'padding': [0.5, 0.5],  # border, off
-                                                     'pooling': [0.2, 0.2]  # max, avg
-                                                     }
-                                           },
-                               total_layers=random.randint(3, 7), save_file=None)
+        mg = ModelGenerator() # Latency strategy Dense jobs
+        # Update config params with bitwidth
+        config_params['weight_bit_width'] = bitwidth
+        config_params['activ_bit_width'] = bitwidth
+        config_params['weight_int_width'] = 1
+        config_params['activ_int_width'] = 1
+        
+        model = mg.gen_network(add_params=config_params,
+                               total_layers=random.randint(config_params['min_layer_count'], config_params['max_layer_count']), save_file=None)
         return model.name, model.to_json()
     except Exception as e:
+        logger.error(f"Error generating model: {e}")
         raise(e)
 
-def threaded_exec(batch_range: int, batch_size: int):
+def threaded_exec(batch_range: int, batch_size: int, config_params: dict, output_dir: str):
+    """
+    Execute model generation in batches.
+    
+    Args:
+        batch_range (int): Number of files to generate
+        batch_size (int): Number of models per file
+        config_params (dict): Configuration parameters
+        output_dir (str): Output directory
+    """
     succeeded = 0
 
     assert batch_range > 0
     assert batch_size > 0
-    for batch_i in tqdm(range(batch_range), desc="Batch Count:"):
+    for batch_i in tqdm(range(batch_range), desc="Batch Count: "):
         model_dict = {}
-        futures = [generate_model.remote(2 ** random.randint(2, 4)) for _ in range(batch_size)]
+        futures = [generate_model.remote(2 ** random.randint(2, config_params["max_bit_width_po2"]), config_params) for _ in range(batch_size)]
         for future in ray.get(futures):
             model_name, model_json = future
             if model_name and model_json:
@@ -453,17 +547,34 @@ def threaded_exec(batch_range: int, batch_size: int):
                 model_dict.update({f"dense_resource_{succeeded}": model_json})  # Store the model with its name
                 succeeded += 1
         json_models = json.dumps(model_dict, indent=2)
-        with open(f"dense_resource_test/dense_resource_batch_{batch_i}.json", "w") as file:
+        output_file = os.path.join(output_dir, f"dense_latency_extended_batch_{batch_i}.json")
+        with open(output_file, "w") as file:
             file.write(json_models)
+        #logger.info(f"Saved batch {batch_i} to {output_file}")
 
 
 if __name__ == '__main__':
-    # batch range is number of files to generate
-    # batch size is number of models per file
-    batch_range = 1 # 334
-    batch_size = 50
-    threaded_exec(batch_range, batch_size)
+    parser = create_parser()
+    args = parser.parse_args()
+    
+    # Load configuration
+    if args.config:
+        config_params = load_config(args.config)
+        logger.info("Using configuration from file")
+    else:
+        config_params = get_default_config()
+        logger.info("Using default configuration")
+
+    
+    # Ensure output directory exists
+    os.makedirs(args.output_dir, exist_ok=True)
+    
+    # Run the threaded execution
+    threaded_exec(args.batch_range, args.batch_size, config_params, args.output_dir)
+    
+    logger.info("Model generation completed successfully")
+    
     # left this here as an example but everything beyond this line in __name__ can be deleted
-    def callback(mg: Model_Generator, layers: list):
+    def callback(mg: ModelGenerator, layers: list):
         if mg.layer_depth > 1:
             mg.params['flatten_chance'] = 1

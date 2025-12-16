@@ -3,7 +3,7 @@
 This directory contains Dockerfiles and related scripts to build Docker images for running wa-hls4ml.
 
 ### Available Docker Images
-The following Docker images are available for use from the ghcr contianer repo. See the packages page of this repo for details on how to pull the images
+The following Docker images are available for use from the ghcr container repo. See the packages page of this repo for details on how to pull the images
 - **wa-hls4ml-search:v2023.2**: This image is based on Vivado 2023.2 and includes all necessary dependencies to run wa-hls4ml. It is the recommended image for new experiments.
 - **wa-hls4ml-search:v2020.1**: This image is based on Vivado 2020.1 and is included for historical purposes. It is not recommended for new experiments and is considered deprecated.
 
