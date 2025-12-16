@@ -72,7 +72,7 @@ def create_parser():
                        help='Prefix path')
     parser.add_argument("-v", "--vsynth", action='store_true',
                        help='Enable vsynth')
-    parser.add_argument("-h", "--hlsproj", type=str, default='/project/hls_proj/',
+    parser.add_argument("--hlsproj", type=str, default='/project/hls_proj/',
                        help='HLS project directory')
     parser.add_argument('--hls4ml_strat', type=str, default="Resource",
                        help='HLS4ML strategy')
