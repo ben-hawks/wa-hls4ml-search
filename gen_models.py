@@ -544,10 +544,10 @@ def threaded_exec(batch_range: int, batch_size: int, config_params: dict, output
             model_name, model_json = future
             if model_name and model_json:
                 # model_name might have dupes because of multithreading, so make a new name for each model
-                model_dict.update({f"dense_resource_{succeeded}": model_json})  # Store the model with its name
+                model_dict.update({f"dense_latency_fast_{succeeded}": model_json})  # Store the model with its name
                 succeeded += 1
         json_models = json.dumps(model_dict, indent=2)
-        output_file = os.path.join(output_dir, f"dense_latency_extended_batch_{batch_i}.json")
+        output_file = os.path.join(output_dir, f"dense_latency_fast_batch_{batch_i}.json")
         with open(output_file, "w") as file:
             file.write(json_models)
         #logger.info(f"Saved batch {batch_i} to {output_file}")
