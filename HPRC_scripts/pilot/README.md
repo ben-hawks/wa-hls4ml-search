@@ -61,6 +61,29 @@ dir), so the `P=2` run mostly hits different units than `P=4` did -- comparable,
 identical, samples. Compare the two tagged sections' `--status` line (succeeded/failed
 counts) and `sacct`/`seff` timing once both have run.
 
+## If your terminal/tmux/SSH session dies mid-run
+
+The SLURM array itself keeps running under SLURM's control regardless of what happens
+to the session that called `--submit` -- only that session's own polling loop dies with
+it. **Don't re-run `02_synthesis_timing_pilot.sh`** (or any bare `--submit`) against the
+same run; `run_synthesis_array.py` now refuses to submit a second array for a run
+that's already been submitted, specifically to prevent this from silently duplicating
+the whole thing. Instead:
+
+```bash
+# Find the run directory if you don't have it handy:
+ls -dt "${PROJECT_DIR:-/scratch/group/p.cis250242.000/wa-hls4ml}"/output/*/_pilot_runs/run_*/ | head -1
+
+bash HPRC_scripts/pilot/recover_run.sh <RUN_DIR>
+```
+
+This reattaches to the existing SLURM job, blocks until it finishes (or returns
+immediately with the final summary if it already did), and writes the same
+`pilot_02_<tag>_{status.log,sacct.csv,seff.txt}` artifacts the original script's tail
+would have -- `03_collect_report.sh` picks them up the same way. If `<RUN_DIR>` has no
+`slurm_job_id.txt`, the session died before `sbatch` ever ran, nothing is in flight, and
+it's safe to just re-run `02_synthesis_timing_pilot.sh` fresh.
+
 ## What each one costs
 
 - **00**: nothing. Pure read-only commands (`scontrol`, `sinfo`, `squeue`, `myproject`,

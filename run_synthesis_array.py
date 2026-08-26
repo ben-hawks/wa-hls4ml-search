@@ -239,6 +239,24 @@ def _current_running_job_count():
 def cmd_submit(run_dir, args):
     from slurm.cli import CONFIRMED_RUNNING_JOB_CAP
 
+    # Refuse to submit a second array for a run that's already been submitted -- without
+    # this, re-running --submit after e.g. a killed tmux session (which only kills the
+    # *polling* loop, not the SLURM array itself) would launch a duplicate array
+    # re-doing the same units in parallel with whatever's still running, wasting real
+    # SUs. Reattach to the existing job with --wait instead; if you genuinely want a
+    # fresh attempt, --prepare a new run (already-complete units are deduped away).
+    existing_job_id_path = os.path.join(run_dir, "slurm_job_id.txt")
+    if os.path.exists(existing_job_id_path) and not args.dry_run:
+        with open(existing_job_id_path) as f:
+            existing_job_id = f.read().strip()
+        raise SystemExit(
+            f"{run_dir} was already submitted as job {existing_job_id}. Refusing to "
+            f"submit a second array for the same run (this would duplicate work still "
+            f"in flight). If your terminal/session died mid-poll, the array itself kept "
+            f"running under SLURM independently -- reattach instead:\n"
+            f"  python run_synthesis_array.py --wait {run_dir}"
+        )
+
     manifest = _read_json(_manifest_path(run_dir))
     remaining = manifest["remaining"]
     if remaining == 0:
@@ -405,6 +423,30 @@ def cmd_status(run_dir):
             logger.info(f"Slurm job {job_id}: no tasks currently queued/running.")
 
 
+def cmd_wait(run_dir):
+    """Reattach to an already-submitted run's SLURM job and poll until done, WITHOUT
+    submitting anything new.
+
+    Recovery path for when the process that called --submit (and was blocking on its
+    own poll loop) died -- e.g. a tmux session getting killed by the server -- while
+    the SLURM array itself kept running independently under SLURM's control. Safe to
+    run at any point after submission: if the array already finished, this returns
+    after one short poll with the same done/failed summary --submit would have printed.
+    """
+    job_id_path = os.path.join(run_dir, "slurm_job_id.txt")
+    if not os.path.exists(job_id_path):
+        raise SystemExit(
+            f"No slurm_job_id.txt in {run_dir} -- this run was never submitted "
+            f"(or only --dry-run'd). Use --submit first."
+        )
+    with open(job_id_path) as f:
+        job_id = f.read().strip()
+    logger.info(f"Reattaching to job {job_id}...")
+    from slurm.job_array import poll
+    poll(job_id)
+    cmd_status(run_dir)
+
+
 def create_parser():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -418,6 +460,12 @@ def create_parser():
                             "script itself, not by a human.")
     mode.add_argument("--status", metavar="RUN_DIR",
                        help="Report done/pending unit counts for RUN_DIR without polling SLURM.")
+    mode.add_argument("--wait", metavar="RUN_DIR",
+                       help="Reattach to RUN_DIR's already-submitted SLURM job and poll until "
+                            "done, without submitting anything new -- recovery path if the "
+                            "process that called --submit died (e.g. a killed tmux session) "
+                            "while its polling loop was running. The array itself keeps going "
+                            "under SLURM regardless of what happens to the submitting process.")
 
     parser.add_argument("--dry-run", action="store_true",
                          help="With --submit: render job_array.sh and print it without calling sbatch.")
@@ -470,6 +518,8 @@ def main():
         sys.exit(cmd_run_chunk(run_dir, int(task_index)))
     elif args.status:
         cmd_status(args.status)
+    elif args.wait:
+        cmd_wait(args.wait)
 
 
 if __name__ == "__main__":

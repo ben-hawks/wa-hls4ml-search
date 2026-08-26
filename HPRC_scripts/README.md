@@ -66,8 +66,13 @@ python run_synthesis_array.py --submit <RUN_DIR> --dry-run
 # 3. Actually submit (writes slurm_job_id.txt, then polls squeue/sacct until done)
 python run_synthesis_array.py --submit <RUN_DIR>
 
-# 4. If step 3's process dies mid-poll, the array keeps running under SLURM independently --
-#    check on it later without re-submitting:
+# 4. If step 3's process dies mid-poll (killed tmux/SSH session, etc.), the array keeps
+#    running under SLURM independently. Reattach and resume polling until done --
+#    do NOT run --submit again, it will refuse (and would otherwise duplicate the
+#    whole array if it didn't):
+python run_synthesis_array.py --wait <RUN_DIR>
+
+# Or just check current progress without blocking/polling:
 python run_synthesis_array.py --status <RUN_DIR>
 ```
 
