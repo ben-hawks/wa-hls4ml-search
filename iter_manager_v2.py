@@ -2,11 +2,33 @@ import argparse
 import os
 import sys
 import json
+import logging
 import pandas as pd
 from run_search_iteration import run_iter
 from tensorflow.keras.models import model_from_json
 from qkeras.utils import _add_supported_quantized_objects
 import datetime
+
+logger = logging.getLogger(__name__)
+
+
+def load_model_from_batch(models_dict, model_name, custom_objects):
+    """Build the Keras model for one named entry in an already-loaded batch dict."""
+    return model_from_json(models_dict[model_name], custom_objects=custom_objects)
+
+
+def load_named_model_from_batch_file(batch_path, model_name):
+    """Load one named model directly from a batch JSON file on disk.
+
+    Factored out for reuse by the SLURM array per-unit runner (run_one_unit.py),
+    which only knows a (batch_file, model_name) pair, not an in-memory batch dict.
+    """
+    with open(batch_path, 'r') as f:
+        models = json.load(f)
+    co = {}
+    _add_supported_quantized_objects(co)
+    return load_model_from_batch(models, model_name, co)
+
 
 def main(args):
     """
@@ -32,8 +54,13 @@ def main(args):
             for rf in range(args.rf_lower, args.rf_upper + 1, rf_step):
                 use_rf = 1 if rf == 0 else rf  # fix to let us start at 0 to get clean steps, but still do rf=1
                 print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth, model_name, rf))
-                run_iter(model_name, output_loc, use_rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat, 
-                         precision=prec, config_str=config_str, hlsproj=args.hlsproj)
+                try:
+                    run_iter(model_name, output_loc, use_rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
+                             precision=prec, config_str=config_str, hlsproj=args.hlsproj)
+                except Exception as e:
+                    # Don't let one bad (model, RF) pair kill every remaining pair in this
+                    # batch file's loop -- log and move on to the next one.
+                    logger.error(f"Skipping {model_name} rf={use_rf} after error: {e}")
     elif args.file.endswith('.json'):
         print("Found JSON File, loading...")
         with open(args.file, 'r') as file:
@@ -42,13 +69,18 @@ def main(args):
             models = json.load(file)
             print(f"Length of models JSON: {len(models)}")
             
-            for model_name, model_desc in models.items():
-                model = model_from_json(model_desc, custom_objects=co)
+            for model_name in models:
+                model = load_model_from_batch(models, model_name, co)
                 for rf in range(args.rf_lower, args.rf_upper, rf_step):
                     use_rf = 1 if rf == 0 else rf  # fix to let us start at 0 to get clean steps, but still do rf=1
                     print("Running hls4ml Synth (vsynth: {}) for {} with RF of {}".format(args.vsynth, model_name, rf))
-                    run_iter(model_name, None, use_rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
-                             hlsproj=args.hlsproj, model=model, conv=args.conv)
+                    try:
+                        run_iter(model_name, None, use_rf, args.output, vsynth=args.vsynth, strat=args.hls4ml_strat,
+                                 hlsproj=args.hlsproj, model=model, conv=args.conv)
+                    except Exception as e:
+                        # Don't let one bad (model, RF) pair kill every remaining pair in this
+                        # batch file's loop -- log and move on to the next one.
+                        logger.error(f"Skipping {model_name} rf={use_rf} after error: {e}")
 
 def create_parser():
     """

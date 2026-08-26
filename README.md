@@ -23,9 +23,21 @@ The standard flow for running a large scale generation & synthesis job is as fol
 ## Model Config File Generation
 The model config files used to specify the models to be converted and synthesized are in JSON format. To generate these files, you can use the [gen_models script](gen_models.py) in the directory. This script allows you to define the architecture parameters, quantization schemes, and other relevant settings for the models you wish to include in your experiments.
 
-At the moment, the way to configure the generation parameters is to modify the default values in the script itself. Future versions may include a more user-friendly way to specify these parameters via command line arguments or configuration files.
+Generation parameters are configured via a JSON config file passed with `-c/--config` (see `config_dense_latency_fast.json` for a working example, and `config_example.json` for an annotated -- but not directly loadable, since it contains comments -- reference of every available field). If `-c` is omitted, the script falls back to a hardcoded default configuration (`get_default_config()` in `gen_models.py`).
 
-Documentation for the gen_models script can be found in [gen_models_documentation.md](gen_models_documentation.md).
+Other CLI flags:
+* `-b/--batch_range`: number of output batch files to generate (default 1)
+* `-s/--batch_size`: number of models per batch file (default 50)
+* `-o/--output_dir`: output directory for the batch JSON files (default `dense_resource_test`)
+* `-p/--prefix`: prefix used for both generated model names (`<prefix>_<n>`) and output filenames (`<prefix>_batch_<i>.json`) (default `model`) -- set this to match the corpus you're generating, e.g. `--prefix dense_resource`
+* `--cartesian`: enumerate the full Cartesian product of the design space instead of random sampling, for guaranteed gap-free coverage of a (typically small) sweep
+* `--lhs N [--lhs-seed SEED]`: draw `N` Latin Hypercube samples instead of random sampling -- a stratified alternative that covers the joint design space more evenly per model generated than independent random sampling, for efficient use of synthesis budget when extending the dataset
+
+`--cartesian` and `--lhs` are dense-only and mutually exclusive with each other and with the default random-sampling mode; see [gen_models_documentation.md](gen_models_documentation.md) for the config shape each expects.
+
+Default-mode generation is parallelized across CPU cores using [Ray](https://www.ray.io/), initialized lazily (only when this mode actually runs) with a conservative `min(cpu_count, 4)` default, overridable via the `RAY_NUM_CPUS` env var -- `--cartesian`/`--lhs` don't use Ray at all. Per-model quantization bit width in default mode is sampled independently of `weight_bit_width`/`activ_bit_width` in the config file: each model gets a power-of-2 bit width drawn from `2**2` up to `2**max_bit_width_po2` (both `weight_bit_width` and `activ_bit_width` are set to this same sampled value), so `max_bit_width_po2` in the config file is what actually controls the bit-width range, not `weight_bit_width`/`activ_bit_width` directly.
+
+Documentation for the gen_models script (parameter reference, callback/blacklist usage, `--cartesian`/`--lhs` config shapes) can be found in [gen_models_documentation.md](gen_models_documentation.md).
 
 ## Requirements
 

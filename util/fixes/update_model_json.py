@@ -16,7 +16,7 @@ import subprocess
 from concurrent.futures import ProcessPoolExecutor
 from keras.models import load_model
 from qkeras.utils import _add_supported_quantized_objects
-from ..keras_parser import config_from_keras_model
+from util.keras_parser import config_from_keras_model
 from tqdm import tqdm
 
 def extract_target_file(artifacts_path, target_filename, extract_to="./"):

@@ -8,6 +8,7 @@ import argparse
 import json
 from deperecated.gen_dense_models_v2 import generate_model_from_config
 from util.json_dataset_processor import process_json_entry
+from util.completion import is_unit_complete
 import logging
 
 # Configure logging
@@ -65,30 +66,31 @@ def print_dict(d, indent=0):
         else:
             print(':' + ' ' * (20 - len(key) - 2 * indent) + str(value))
 
-def _create_directories(output, hlsproj, name, rf):
+def _create_directories(output, name, rf):
     """
-    Create necessary directories for the run.
-    
+    Create necessary output-side directories for the run.
+
+    Deliberately does not create the HLS scratch project directory -- callers
+    should only do that after confirming the unit isn't already complete
+    (via is_unit_complete), since Vivado scratch directories are the main
+    driver of Lustre file-count churn at this dataset's scale, and creating
+    one for a unit that's just going to be skipped wastes file-count quota.
+
     Args:
         output (str): Output directory
-        hlsproj (str): HLS project directory
         name (str): Model name
         rf (int): Reuse factor
     """
     # Ensure parent directories exist
     os.makedirs(output, exist_ok=True)
     os.makedirs(os.path.join(output, "projects"), exist_ok=True)
-    
+
     json_name = os.path.join(output, "raw_reports", f"{name}_rf{rf}_report.json")
     processed_json_name = os.path.join(output, f"{name}_rf{rf}_processed.json")
-    
+
     os.makedirs(os.path.dirname(json_name), exist_ok=True)
-    os.makedirs(os.path.dirname(processed_json_name), exist_ok=True)
-    
-    hls_dir = os.path.join(hlsproj, f"{name}_rf{rf}")
-    os.makedirs(hls_dir, exist_ok=True)
-    
-    return json_name, processed_json_name, hls_dir
+
+    return json_name, processed_json_name
 
 def _load_model(model_file, config_str, precision, model):
     """
@@ -142,23 +144,30 @@ def run_iter(name="model", model_file='/project/model.h5', rf=1, output="/output
         model: Direct model object
         conv (bool): Enable convolutional processing
     """
+    hls_dir = os.path.join(hlsproj, f"{name}_rf{rf}")
     try:
+        # Real success check, before touching any directories -- a processed JSON
+        # existing isn't enough (see util.completion.is_unit_complete: failed
+        # synthesis still writes a valid-looking processed JSON with empty report
+        # dicts). Checking before creating the HLS scratch dir means an
+        # already-complete unit doesn't churn an empty scratch directory on
+        # every re-run/resume pass.
+        if is_unit_complete(output, name, rf):
+            logger.info(f"{name}_rf{rf} already complete, skipping...")
+            return
+
         # Setup backend
         hls4ml_backend = _setup_hls4ml_backend()
-        
+
         # Load model
         model = _load_model(model_file, config_str, precision, model)
-        
+
         # Create directories
-        json_name, processed_json_name, hls_dir = _create_directories(output, hlsproj, name, rf)
-        
-        # Check if already processed
-        if os.path.exists(processed_json_name):
-            logger.info(f"{processed_json_name} Already exists, skipping...")
-            return
-        
+        json_name, processed_json_name = _create_directories(output, name, rf)
+
         logger.info(f"Creating directory: {hls_dir}")
-        
+        os.makedirs(hls_dir, exist_ok=True)
+
         # Configure HLS
         config = hls4ml.utils.config_from_keras_model(model, granularity='name', backend=hls4ml_backend)
         config['Model']['ReuseFactor'] = rf
@@ -212,6 +221,11 @@ def run_iter(name="model", model_file='/project/model.h5', rf=1, output="/output
         
     except Exception as e:
         logger.error(f"Error processing {name} with RF {rf}: {str(e)}")
+        # A raised exception means the success path's cleanup (tar + rmtree) below
+        # never ran -- clean up the scratch dir here instead, so a failed unit
+        # doesn't leak its HLS project directory (a real quota concern at scale,
+        # see planning/golden_rules.md #2).
+        shutil.rmtree(hls_dir, ignore_errors=True)
         raise
 
 def main(args):
@@ -239,7 +253,7 @@ def create_parser():
                        help='Target part')
     parser.add_argument('-o', '--output', type=str, default='/output',
                        help='Output directory')
-    parser.add_argument('-h', '--hlsproj', type=str, default='/project/hls_proj/',
+    parser.add_argument('--hlsproj', type=str, default='/project/hls_proj/',
                        help='HLS project directory')
     parser.add_argument('-r', '--rf', type=int, default=1,
                        help='Reuse factor')
