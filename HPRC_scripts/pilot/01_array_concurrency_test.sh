@@ -9,7 +9,9 @@
 # 40-job cap), specifically so the test can observe whether SLURM caps concurrently
 # RUNNING tasks at ~40 on its own.
 #
-# Usage: bash 01_array_concurrency_test.sh
+# Usage (run with `bash`, NOT `source` -- sourcing this changes your interactive
+# shell's directory and shell options, and a mid-script `exit` would close your shell):
+#   bash 01_array_concurrency_test.sh
 # Blocks for a few minutes (until the test array finishes), then writes a report.
 
 set -uo pipefail
@@ -19,7 +21,10 @@ N_TASKS=60
 CONCURRENCY=60
 SLEEP_SECS=90
 
-OUT="pilot_01_array_concurrency_$(date +%Y%m%d_%H%M%S)"
+# Anchored to an absolute path resolved once up front, same reasoning as
+# 02_synthesis_timing_pilot.sh's PILOT_DIR -- keeps output location independent of any
+# cwd surprise later in the script.
+OUT="$(pwd)/pilot_01_array_concurrency_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$OUT"
 LOG="$OUT/poll_log.csv"
 SCRIPT="$OUT/test_array.sh"
@@ -50,6 +55,12 @@ fi
 
 echo "job_id,timestamp,running_this_job,pending_this_job,running_total_user" > "$LOG"
 
+# Tracked inline as the loop runs, not by re-reading $LOG afterward -- avoids depending
+# on a second read of a file this same script just wrote (the class of bug that broke
+# 02_synthesis_timing_pilot.sh under `source`). $LOG is still written for the full
+# timeseries record, just not load-bearing for this headline number.
+MAX_CONCURRENT=0
+
 echo "Polling every 5s until job $JOB_ID finishes..."
 while true; do
     STATE_LINES=$(squeue -j "$JOB_ID" -h -o "%T" 2>/dev/null)
@@ -59,15 +70,15 @@ while true; do
     TS=$(date +%s)
     echo "$JOB_ID,$TS,$RUNNING_THIS,$PENDING_THIS,$RUNNING_TOTAL_USER" >> "$LOG"
     echo "  t=$TS  running(this job)=$RUNNING_THIS  pending(this job)=$PENDING_THIS  running(all \$USER jobs)=$RUNNING_TOTAL_USER"
+    if [ "$RUNNING_THIS" -gt "$MAX_CONCURRENT" ]; then
+        MAX_CONCURRENT=$RUNNING_THIS
+    fi
     if [ -z "$STATE_LINES" ]; then
         echo "Job $JOB_ID has no more tasks in the queue -- done."
         break
     fi
     sleep 5
 done
-
-MAX_CONCURRENT=$(awk -F, 'NR>1 {print $3}' "$LOG" | sort -n | tail -1)
-MAX_CONCURRENT=${MAX_CONCURRENT:-0}
 
 {
 echo "=== Array concurrency pilot report ==="

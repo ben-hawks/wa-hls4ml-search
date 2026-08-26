@@ -2,7 +2,7 @@
 # Phase 0 pilot, final step: bundle every artifact from 00/01/02 into one file to send
 # back. Run this from the same directory you ran the other three scripts in.
 #
-# Usage: bash 03_collect_report.sh
+# Usage (run with `bash`, NOT `source`): bash 03_collect_report.sh
 
 set -uo pipefail
 

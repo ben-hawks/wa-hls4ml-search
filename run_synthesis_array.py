@@ -168,6 +168,11 @@ def cmd_prepare(args):
     shuffle_seed = args.shuffle_seed if args.shuffle_seed is not None else random.randint(0, 2**31 - 1)
     random.Random(shuffle_seed).shuffle(jobs)
 
+    if args.limit is not None and len(jobs) > args.limit:
+        logger.info(f"--limit {args.limit}: capping {len(jobs)} shuffled units down to {args.limit} "
+                    f"(a random subset, since the shuffle above already ran)")
+        jobs = jobs[:args.limit]
+
     run_dir_root = args.run_dir_root or os.path.join(args.output, "_runs")
     os.makedirs(run_dir_root, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -374,6 +379,10 @@ def create_parser():
                                      "'model_name' or 'model_name<TAB>rf'.")
     prepare_group.add_argument("--shuffle-seed", type=int, default=None,
                                 help="Seed for the joblist shuffle (default: generated and logged).")
+    prepare_group.add_argument("--limit", type=int, default=None,
+                                help="Cap the joblist to at most N units (a random subset, taken "
+                                     "after shuffling) -- for a bounded-size pilot/smoke-test run "
+                                     "regardless of how the underlying batch files are sized.")
 
     from slurm import cli as slurm_cli
     slurm_cli.add_slurm_args(parser)

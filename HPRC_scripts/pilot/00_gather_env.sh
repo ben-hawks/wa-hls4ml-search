@@ -5,7 +5,9 @@
 # real computation, so it's fine outside sbatch (see planning/golden_rules.md #5's
 # interactive-session limits, which this stays well under).
 #
-# Usage: bash 00_gather_env.sh
+# Usage (run with `bash`, NOT `source` -- sourcing this changes your interactive
+# shell's directory and shell options for no benefit here):
+#   bash 00_gather_env.sh
 # Output: pilot_00_env_<timestamp>.txt in the current directory.
 
 set -uo pipefail
