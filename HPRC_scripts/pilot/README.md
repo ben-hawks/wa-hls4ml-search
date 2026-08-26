@@ -1,16 +1,18 @@
 # Phase 0 pilot scripts
 
-These answer the three open questions blocking real trust in `run_synthesis_array.py`'s
-defaults (see `HPRC_scripts/README.md` and `planning/dataset_gen_plan.md` #6):
+`00`/`01` answered the two SLURM-behavior questions blocking real trust in
+`run_synthesis_array.py`'s defaults -- **both now confirmed** (see
+`planning/dataset_gen_plan.md` #6 for the full readout, and `slurm/cli.py` for where
+the confirmed numbers now live as actual defaults): real `MaxArraySize` is 1001, and
+SLURM array tasks *do* count individually against ACES's 40-concurrent-running-job cap.
 
-1. What is ACES's real SLURM `MaxArraySize`? (`--array-max-tasks` defaults to a
-   conservative 500 pending this.)
-2. Does a SLURM job array count each task individually against ACES's 40-concurrent-
-   running-job cap, or does the whole array count as one job? (`--array-concurrency`
-   defaults to a conservative 8 pending this -- if array tasks count individually, the
-   real ceiling is much lower than you'd guess from `--array=...%N` alone.)
-3. What's real per-unit synthesis wall-clock time and memory usage for this pipeline,
-   so `-K`/`-P`/`--slurm-time` can be tuned from evidence instead of guesses?
+`02` is an ongoing timing/reliability pilot, now parameterized over `-P`/`--units-parallel`
+so it can be re-run at different concurrency levels for comparison. The first run
+(`P=4`, 2026-08-26) found a 2/20 failure rate root-caused to Vivado's `synth_design`
+internally multithreading up to 7 processes *per unit* (visible in
+`slurm_logs/task_N.out` as `"Multithreading enabled for synth_design using a maximum
+of 7 processes"`) -- meaning `P=4` oversubscribes an 8-core chunk by up to ~28 threads.
+See "Comparing concurrency levels" below for the follow-up test this prompted.
 
 ## Run these in order, from the repo root on an ACES login node, with `bash` -- not `source`
 
@@ -37,24 +39,45 @@ hardened the same way, but the `bash`-not-`source` rule still applies to all fou
 Then send back the file `03_collect_report.sh` writes (`pilot_full_report_<timestamp>.txt`)
 -- paste its contents into chat, or transfer the file itself.
 
+## Comparing concurrency levels
+
+`02_synthesis_timing_pilot.sh` now takes `-P`/`--units-parallel`, `-K`/`--units-per-chunk`,
+`--limit`, and `--array-concurrency` overrides, and tags its output files with the
+parallelism level (`pilot_02_p4_*`, `pilot_02_p2_*`, ...) so multiple runs don't
+overwrite each other -- `03_collect_report.sh` picks up every tagged set it finds.
+
+To test whether lowering parallelism reduces the failure rate observed at `P=4`:
+
+```bash
+bash HPRC_scripts/pilot/02_synthesis_timing_pilot.sh --units-parallel 2 --units-per-chunk 4
+# K=4 at P=2 -> 2 waves/chunk, same wave count as the original P=4,K=5 run (~2 waves),
+# so the two runs are comparable on chunk shape, not just parallelism.
+bash HPRC_scripts/pilot/03_collect_report.sh
+```
+
+A fresh `--prepare` draws a new random subset of `dense_latency_fast_small` each time
+(auto-excluding whatever's already complete from a prior run against the same output
+dir), so the `P=2` run mostly hits different units than `P=4` did -- comparable, not
+identical, samples. Compare the two tagged sections' `--status` line (succeeded/failed
+counts) and `sacct`/`seff` timing once both have run.
+
 ## What each one costs
 
 - **00**: nothing. Pure read-only commands (`scontrol`, `sinfo`, `squeue`, `myproject`,
   `showquota`, `module spider`) -- safe to run directly on a login node.
 - **01**: near-zero. Submits a 60-task SLURM array where each task just `sleep`s for 90
-  seconds -- no Vivado, no hls4ml, nothing that costs meaningful SUs. Deliberately
-  requests more concurrency (`%60`) than the suspected 40-job cap, specifically to see
-  whether SLURM caps it anyway.
-- **02**: real cost. Runs actual `--vsynth` synthesis on 20 models (`--limit 20`, a
-  random subset of whichever `dense_latency_fast_small` batch file it finds first) at
-  RF=1 -- the smallest, fastest-synthesizing, zero-published-overlap corpus in this
-  repo, but still real Vivado runs. The first run of this script (before `--limit`
-  existed) found that batch file actually contains 200 models, not the 50
-  `repo_notes.md`'s table describes -- `--limit` keeps the pilot's cost bounded and
-  predictable regardless of that. Run the `--dry-run` pass first and read the rendered
-  `job_array.sh` before running for real. For an even smaller/cheaper first look, edit
-  the `--limit`/`--units-per-chunk`/`--array-concurrency` values in the script down
-  further.
+  seconds -- no Vivado, no hls4ml, nothing that costs meaningful SUs. Requested more
+  concurrency (`%60`) than the 40-job cap on purpose, to see whether SLURM would cap it
+  anyway -- confirmed it does (pinned at exactly 40 the entire time).
+- **02**: real cost, per run. Runs actual `--vsynth` synthesis on `--limit` models
+  (default 20, a random subset of whichever `dense_latency_fast_small` batch file it
+  finds first) at RF=1 -- the smallest, fastest-synthesizing, zero-published-overlap
+  corpus in this repo, but still real Vivado runs. (The first run of this script,
+  before `--limit` existed, found that batch file actually contains 200 models, not the
+  50 `repo_notes.md`'s table describes.) Run the `--dry-run` pass first and read the
+  rendered `job_array.sh` before running for real. `--limit`/`-K`/`-P`/
+  `--array-concurrency` are all CLI flags now (see "Comparing concurrency levels") --
+  no need to edit the script to change them.
 - **03**: nothing. Just `cat`s together whatever 00/01/02 already produced.
 
 ## If something looks off

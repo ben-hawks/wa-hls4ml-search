@@ -209,7 +209,36 @@ def cmd_prepare(args):
     return run_dir
 
 
+def _format_hms(total_minutes):
+    """Round up to whole minutes, format as H:MM:SS (or D-HH:MM:SS past 24h)."""
+    total_minutes = math.ceil(total_minutes)
+    days, rem_minutes = divmod(total_minutes, 24 * 60)
+    hours, minutes = divmod(rem_minutes, 60)
+    if days > 0:
+        return f"{days}-{hours:02d}:{minutes:02d}:00"
+    return f"{hours}:{minutes:02d}:00"
+
+
+def _current_running_job_count():
+    """Best-effort live squeue check; returns None if squeue isn't available/fails
+    (e.g. running this off-cluster) rather than raising -- this check is a courtesy
+    warning, not a hard gate.
+    """
+    try:
+        result = subprocess.run(
+            ["squeue", "-u", os.environ.get("USER", ""), "-t", "RUNNING", "-h"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        return len([line for line in result.stdout.splitlines() if line.strip()])
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def cmd_submit(run_dir, args):
+    from slurm.cli import CONFIRMED_RUNNING_JOB_CAP
+
     manifest = _read_json(_manifest_path(run_dir))
     remaining = manifest["remaining"]
     if remaining == 0:
@@ -218,15 +247,50 @@ def cmd_submit(run_dir, args):
 
     k = args.units_per_chunk or max(1, math.ceil(remaining / args.array_max_tasks))
     n_tasks = max(1, math.ceil(remaining / k))
+    p = args.units_parallel
+
+    # Confirmed empirically (2026-08-26 pilot, see planning/dataset_gen_plan.md): SLURM
+    # array tasks count individually against ACES's 40-concurrent-running-job cap, not
+    # just as one job for the whole array. This is a courtesy warning, not a hard block
+    # -- SLURM itself will simply queue anything past the real cap rather than error, but
+    # silently starving the user's *other* concurrent work is exactly the failure mode
+    # worth flagging before submitting.
+    current_running = _current_running_job_count()
+    if current_running is not None and current_running + args.array_concurrency > CONFIRMED_RUNNING_JOB_CAP:
+        logger.warning(
+            f"You currently have {current_running} job(s) running, and this array requests "
+            f"%{args.array_concurrency} concurrency -- combined ({current_running + args.array_concurrency}) "
+            f"exceeds ACES's confirmed {CONFIRMED_RUNNING_JOB_CAP}-concurrent-running-job cap. "
+            f"SLURM will simply queue the excess rather than error, but it will also queue "
+            f"behind (or starve) whatever else you have running under this account. Consider "
+            f"a lower --array-concurrency."
+        )
+
+    if args.slurm_time:
+        slurm_time = args.slurm_time
+    else:
+        waves = math.ceil(k / p)
+        computed_minutes = max(15, waves * args.minutes_per_unit)
+        slurm_time = _format_hms(computed_minutes)
+        logger.info(f"--slurm-time not given: computed {slurm_time} from ceil(K/P)={waves} "
+                    f"wave(s) x --minutes-per-unit={args.minutes_per_unit}")
+        if computed_minutes > 72 * 60:
+            logger.warning(
+                f"Computed --slurm-time ({slurm_time}) exceeds the cpu queue's 72h ceiling "
+                f"(planning/golden_rules.md #3) -- this job would be rejected or truncated. "
+                f"Reduce K (more, smaller chunks) or increase P (more parallelism per chunk), "
+                f"or pass --slurm-time explicitly if you've confirmed a different queue/ceiling."
+            )
 
     submission = {
         "k": k,
         "n_tasks": n_tasks,
-        "units_parallel": args.units_parallel,
+        "units_parallel": p,
         "array_concurrency": args.array_concurrency,
         "cpus_per_unit": args.cpus_per_unit,
         "mem_per_unit": args.mem_per_unit,
         "array_max_tasks": args.array_max_tasks,
+        "slurm_time": slurm_time,
         "submitted_at": datetime.now().strftime("%Y%m%d_%H%M%S"),
     }
     with open(_submission_path(run_dir), "w") as f:

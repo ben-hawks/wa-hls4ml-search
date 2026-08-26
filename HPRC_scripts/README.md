@@ -71,10 +71,12 @@ python run_synthesis_array.py --submit <RUN_DIR>
 python run_synthesis_array.py --status <RUN_DIR>
 ```
 
-**Do not point this at a full architecture's worth of work yet.** Chunk size (`-K`/`--units-per-chunk`), array size (`--array-max-tasks`, default 500), concurrency (`--array-concurrency`, default 8), and in-chunk parallelism (`-P`/`--units-parallel`, default 4) are all conservative placeholders pending the pilot steps in `planning/dataset_gen_plan.md`:
+**Piloted 2026-08-26 against `dense_latency_fast_small` -- see `planning/dataset_gen_plan.md` #6 for the full readout.** Confirmed: real `MaxArraySize` is 1001 (`--array-max-tasks` now defaults to 800), and SLURM array tasks **do** count individually against ACES's 40-concurrent-running-job cap (`--array-concurrency` now defaults to 30, and `--submit` warns via a live `squeue` check if this run's concurrency plus whatever else you have running would exceed 40). `--slurm-time` now auto-computes from chunk size (`ceil(K/P) * --minutes-per-unit`) instead of a flat default -- the previous flat `60:00:00` was a real 60x walltime-vs-runtime mismatch on the pilot's small chunk.
 
-1. `scontrol show config | grep -i MaxArraySize` on a login node -- confirms the real ceiling `--array-max-tasks` should respect.
-2. A small throwaway array (e.g. against `dense_latency_fast_small`, confirmed zero published-overlap and lowest-risk per `planning/dataset_gen_plan.md` #2b) while watching `squeue -u $USER -t RUNNING | wc -l`, to determine whether SLURM array tasks count individually against ACES's 40-concurrent-running-job cap (`planning/golden_rules.md` #3). If they do, `--array-concurrency` has a hard ceiling around ~30-35 *system-wide*, not just for this run.
-3. Use that pilot's `seff` output + observed per-unit wall-clock to tune real `-K`/`-P`/`--slurm-time` defaults before a full-architecture run.
+**Still don't point this at a full architecture's worth of work yet:**
+
+1. The pilot's timing (`--minutes-per-unit` defaults to 60, roughly 2x the worst per-wave time observed) only reflects `dense_latency_fast_small`, the smallest/fastest corpus here -- recalibrate it with the same pilot against conv1d/conv2d/dense_latency/dense_resource before trusting `--slurm-time`'s auto-computed value for those.
+2. `-P`/`--units-parallel` (default 4) showed comfortable memory headroom (34-56% of requested) on the pilot's small models -- don't raise it for bigger architectures without piloting them specifically.
+3. 2 of the pilot's 20 units failed; the per-unit isolation worked as designed (the other 18 completed normally), but the root cause of those 2 hasn't been checked yet (`slurm_logs/task_1.{out,err}` in that run directory).
 
 `run_one_unit.py` (repo root) is what each chunk actually shells out to per unit -- it calls the same `run_search_iteration.run_iter()` the existing scripts do, so the on-disk result schema (`_processed.json`, `raw_reports/`, `projects/*.tar.gz`) is unchanged; `util/batch_compress_files.py`, `util/json_dataset_merge.py`, and `util/fixes/*` all keep working against either script's output without modification.

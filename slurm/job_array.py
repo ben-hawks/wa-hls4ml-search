@@ -37,8 +37,9 @@ def write_array_script(run_dir, manifest, submission, args):
     Args:
         run_dir: the prepared run directory (contains joblist.txt, manifest.json).
         manifest: dict from run_synthesis_array.cmd_prepare (arch, output, hlsproj, ...).
-        submission: dict with the resolved array shape (k, n_tasks, units_parallel, ...).
-        args: argparse Namespace with slurm_account/slurm_time/slurm_partition.
+        submission: dict with the resolved array shape (k, n_tasks, units_parallel,
+            slurm_time already resolved from --slurm-time or auto-computed, ...).
+        args: argparse Namespace with slurm_account/slurm_partition.
     """
     n_tasks = submission['n_tasks']
     p = submission['units_parallel']
@@ -61,7 +62,7 @@ def write_array_script(run_dir, manifest, submission, args):
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={total_cpus}
 #SBATCH --mem={total_mem}
-#SBATCH --time={args.slurm_time}
+#SBATCH --time={submission['slurm_time']}
 {partition_line}#SBATCH --array=0-{n_tasks - 1}%{submission['array_concurrency']}
 #SBATCH --output={slurm_logs_dir}/task_%a.out
 #SBATCH --error={slurm_logs_dir}/task_%a.err

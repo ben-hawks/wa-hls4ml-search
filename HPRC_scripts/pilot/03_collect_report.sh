@@ -38,15 +38,26 @@ echo
 echo "############################################################"
 echo "# 02_synthesis_timing_pilot"
 echo "############################################################"
-for f in pilot_02_prepare.log pilot_02_submit.log pilot_02_status.log pilot_02_sacct.csv pilot_02_seff.txt; do
-    echo "--- $f ---"
-    if [ -f "$f" ]; then
-        cat "$f"
-    else
-        echo "(missing -- did you run 02_synthesis_timing_pilot.sh without --dry-run?)"
-    fi
-    echo
-done
+# Tagged per parallelism level (pilot_02_p<P>_*) so multiple comparison runs (e.g.
+# P=4 vs P=2) each show up separately instead of one overwriting another.
+if ls pilot_02_p*_prepare.log >/dev/null 2>&1; then
+    for prepare_log in pilot_02_p*_prepare.log; do
+        tag=$(basename "$prepare_log" "_prepare.log")  # e.g. pilot_02_p4
+        echo "=== $tag ==="
+        for suffix in prepare.log submit.log status.log sacct.csv seff.txt; do
+            f="${tag}_${suffix}"
+            echo "--- $f ---"
+            if [ -f "$f" ]; then
+                cat "$f"
+            else
+                echo "(missing)"
+            fi
+            echo
+        done
+    done
+else
+    echo "(not found -- did you run 02_synthesis_timing_pilot.sh without --dry-run?)"
+fi
 } > "$OUT"
 
 echo "Wrote $OUT ($(wc -l < "$OUT") lines)."

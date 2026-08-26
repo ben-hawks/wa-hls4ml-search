@@ -210,6 +210,27 @@ def run_iter(name="model", model_file='/project/model.h5', rf=1, output="/output
             json.dump(report_json, outfile)
 
         processed_json, model_uuid = process_json_entry(model, config, json_name, part=part)
+
+        # process_json_entry() falls back to a skeleton with an empty resource_report
+        # (silently, via its own internal except block -- see util/json_dataset_processor.py)
+        # if it couldn't find a VivadoSynthReport in the raw report, e.g. because the
+        # actual Vivado logic-synthesis step didn't produce one even though hls_model.build()
+        # itself didn't raise. Left unchecked, this function would log success and delete
+        # the scratch directory anyway, exactly as if vsynth had never been requested --
+        # confirmed happening in practice (2/20 units in the 2026-08-26 pilot, no exception
+        # raised, scratch dir deleted, only caught downstream by the orchestrator's separate
+        # is_unit_complete check). Treat it as a real failure here instead, so every caller
+        # (not just run_synthesis_array.py) gets a loud, immediate signal instead of a
+        # silently-incomplete record.
+        if vsynth and not processed_json.get("resource_report"):
+            raise RuntimeError(
+                f"{name}_rf{rf}: --vsynth was requested but no VivadoSynthReport was found "
+                f"in the raw report ({json_name}) -- process_json_entry fell back to an "
+                f"empty resource_report. Likely a Vivado logic-synthesis failure (check for "
+                f"resource contention if this ran alongside other concurrent synthesis jobs "
+                f"on the same node) rather than an hls4ml/Python-level error."
+            )
+
         with open(processed_json_name, "w") as outfile:
             json.dump(processed_json, outfile)
 
