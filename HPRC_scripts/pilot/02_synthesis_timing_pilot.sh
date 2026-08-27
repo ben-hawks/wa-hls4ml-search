@@ -4,13 +4,19 @@
 # with the already-published dataset and the lowest-risk corpus to burn real SUs on
 # (planning/dataset_gen_plan.md #2b).
 #
-# Parameterized over -P/--units-parallel and -K/--units-per-chunk so the SAME script
-# can run comparable pilots at different concurrency levels -- e.g. the 2026-08-26
-# P=4 pilot showed a 2/20 failure rate, root-caused to Vivado's synth_design internally
-# multithreading up to 7 processes PER unit (visible in slurm_logs/task_N.out as
-# "Multithreading enabled for synth_design using a maximum of 7 processes"), meaning
-# P=4 oversubscribes an 8-core chunk by up to ~28 threads. Re-running at -P 2 tests
-# whether that oversubscription is really what's causing the failures.
+# Parameterized over -P/--units-parallel, -K/--units-per-chunk, and --cpus-per-unit so
+# the SAME script can run comparable pilots at different concurrency/core settings.
+#
+# 2026-08-26 findings: the P=4 pilot showed a 2/20 failure rate, root-caused to
+# Vivado's synth_design internally multithreading up to 7 processes PER unit (visible
+# in slurm_logs/task_N.out as "Multithreading enabled for synth_design using a maximum
+# of 7 processes"). A P=2 follow-up (same --cpus-per-unit=2) showed the IDENTICAL 2/20
+# failure rate, on a completely different, non-overlapping set of models, with the same
+# exact "Vivado synthesis report not found" / missing-VivadoSynthReport signature both
+# times -- ruling out a model-specific cause. The reason P alone didn't help: the
+# oversubscription ratio is (P*7 threads) / (P*cpus_per_unit cores) = 7/cpus_per_unit,
+# which cancels P out entirely. --cpus-per-unit is the knob that actually changes that
+# ratio -- e.g. --cpus-per-unit 4 halves it (7/4 instead of 7/2).
 #
 # COST: this runs real Vivado synthesis (--vsynth). Capped via --limit (default 20)
 # regardless of how big the underlying batch file turns out to be (the first
@@ -21,13 +27,13 @@
 # Usage (run with `bash`, NOT `source` -- sourcing this changes your interactive
 # shell's directory and shell options, and a mid-script `exit` would close your shell):
 #   bash 02_synthesis_timing_pilot.sh --dry-run                     # render only, no cost
-#   bash 02_synthesis_timing_pilot.sh                                # P=4, K=5 (original pilot)
-#   bash 02_synthesis_timing_pilot.sh --units-parallel 2             # P=2, K left at 5 -> 3 waves
-#   bash 02_synthesis_timing_pilot.sh --units-parallel 2 --units-per-chunk 4  # P=2, K=4 -> 2 waves,
-#                                                                       # same wave count as the P=4 baseline
+#   bash 02_synthesis_timing_pilot.sh                                # P=4, K=5, cpus=2 (baseline)
+#   bash 02_synthesis_timing_pilot.sh --units-parallel 2 --units-per-chunk 4  # P=2 comparison (already run)
+#   bash 02_synthesis_timing_pilot.sh --cpus-per-unit 4              # P=4, K=5, cpus=4 -> ratio 7/4
+#                                                                     # instead of 7/2 -- the next test
 #
-# Log files are tagged with the parallelism value (pilot_02_p<P>_*) so a P=2 run
-# doesn't overwrite a P=4 run's artifacts -- run both, then compare failure rates.
+# Log files are tagged with parallelism + cpus-per-unit (pilot_02_p<P>c<CPUS>_*) so
+# different configurations don't overwrite each other's artifacts.
 
 set -uo pipefail
 
@@ -36,6 +42,7 @@ UNITS_PARALLEL=4
 UNITS_PER_CHUNK=5
 LIMIT=20
 ARRAY_CONCURRENCY=5
+CPUS_PER_UNIT=2
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -44,11 +51,12 @@ while [ $# -gt 0 ]; do
         --units-per-chunk|-K) UNITS_PER_CHUNK="$2"; shift 2 ;;
         --limit) LIMIT="$2"; shift 2 ;;
         --array-concurrency) ARRAY_CONCURRENCY="$2"; shift 2 ;;
+        --cpus-per-unit) CPUS_PER_UNIT="$2"; shift 2 ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
 done
 
-TAG="p${UNITS_PARALLEL}"
+TAG="p${UNITS_PARALLEL}c${CPUS_PER_UNIT}"
 
 # Anchor log file locations to wherever this script was invoked from, resolved once up
 # front -- everything below is written via an absolute path under $PILOT_DIR rather than
@@ -76,7 +84,9 @@ if [ -z "$BATCH_FILE" ]; then
     exit 1
 fi
 echo "Using batch file: $BATCH_FILE (--limit $LIMIT below caps the actual pilot size)"
-echo "Config: P=$UNITS_PARALLEL K=$UNITS_PER_CHUNK (-> $(( (UNITS_PER_CHUNK + UNITS_PARALLEL - 1) / UNITS_PARALLEL )) wave(s)/chunk), %$ARRAY_CONCURRENCY concurrency, tag=$TAG"
+WAVES=$(( (UNITS_PER_CHUNK + UNITS_PARALLEL - 1) / UNITS_PARALLEL ))
+RATIO=$(python3 -c "print(f'{7/$CPUS_PER_UNIT:.2f}')" 2>/dev/null || echo "?")
+echo "Config: P=$UNITS_PARALLEL K=$UNITS_PER_CHUNK (-> $WAVES wave(s)/chunk), cpus-per-unit=$CPUS_PER_UNIT (oversubscription ratio 7/$CPUS_PER_UNIT=${RATIO}x), %$ARRAY_CONCURRENCY concurrency, tag=$TAG"
 
 cd "$REPO_DIR"
 
@@ -107,9 +117,10 @@ if [ -z "$RUN_DIR" ]; then
 fi
 echo "Run dir: $RUN_DIR"
 
-echo "=== Rendering array script (K=$UNITS_PER_CHUNK units/chunk, P=$UNITS_PARALLEL parallel/chunk, %$ARRAY_CONCURRENCY concurrency) ==="
+echo "=== Rendering array script (K=$UNITS_PER_CHUNK units/chunk, P=$UNITS_PARALLEL parallel/chunk, cpus-per-unit=$CPUS_PER_UNIT, %$ARRAY_CONCURRENCY concurrency) ==="
 python3 run_synthesis_array.py --submit "$RUN_DIR" \
-    --units-per-chunk "$UNITS_PER_CHUNK" --units-parallel "$UNITS_PARALLEL" --array-concurrency "$ARRAY_CONCURRENCY" \
+    --units-per-chunk "$UNITS_PER_CHUNK" --units-parallel "$UNITS_PARALLEL" \
+    --array-concurrency "$ARRAY_CONCURRENCY" --cpus-per-unit "$CPUS_PER_UNIT" \
     $DRY_RUN 2>&1 | tee "${PILOT_DIR}/pilot_02_${TAG}_submit.log"
 
 if [ -n "$DRY_RUN" ]; then
