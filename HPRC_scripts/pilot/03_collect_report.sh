@@ -39,8 +39,29 @@ echo "############################################################"
 echo "# 02_synthesis_timing_pilot"
 echo "############################################################"
 # Tagged per parallelism level (pilot_02_p<P>_*) so multiple comparison runs (e.g.
-# P=4 vs P=2) each show up separately instead of one overwriting another.
+# P=4 vs P=2) each show up separately instead of one overwriting another. Also picks
+# up the untagged pilot_02_{prepare,submit,...}.log names from before this tagging
+# convention existed, so an earlier P=4 run collected before this script was updated
+# doesn't silently disappear from future reports.
+found_any=0
+
+if [ -f pilot_02_prepare.log ]; then
+    found_any=1
+    echo "=== pilot_02 (untagged -- from before per-P tagging existed) ==="
+    for suffix in prepare.log submit.log status.log sacct.csv seff.txt; do
+        f="pilot_02_${suffix}"
+        echo "--- $f ---"
+        if [ -f "$f" ]; then
+            cat "$f"
+        else
+            echo "(missing)"
+        fi
+        echo
+    done
+fi
+
 if ls pilot_02_p*_prepare.log >/dev/null 2>&1; then
+    found_any=1
     for prepare_log in pilot_02_p*_prepare.log; do
         tag=$(basename "$prepare_log" "_prepare.log")  # e.g. pilot_02_p4
         echo "=== $tag ==="
@@ -55,8 +76,11 @@ if ls pilot_02_p*_prepare.log >/dev/null 2>&1; then
             echo
         done
     done
-else
-    echo "(not found -- did you run 02_synthesis_timing_pilot.sh without --dry-run?)"
+fi
+
+if [ "$found_any" -eq 0 ]; then
+    echo "(not found in $(pwd) -- did you run 02_synthesis_timing_pilot.sh or recover_run.sh"
+    echo "without --dry-run, and are you running this from the same directory as those?)"
 fi
 } > "$OUT"
 
